@@ -78,6 +78,12 @@ struct tcp_pcb {
 	uint32_t	irs;		/* initial receive sequence number */
 	uint32_t	rcv_wscale;	/* the receive window scale */
 	uint32_t	rcv_mss;	/* the send max segment size */
+
+	/*
+	// Congestion control params
+	uint32_t cong_wnd;
+	uint32_t ssthresh;
+	*/
 };
 
 /* the TCP connection struct */

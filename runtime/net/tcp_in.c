@@ -241,6 +241,25 @@ void tcp_rx_conn(struct trans_entry *e, struct mbuf *m)
 		if (c->pcb.snd_una != ack) {
 			c->rep_acks = 0;
 			c->pcb.snd_una = ack;
+			/*
+			THIS PART OF CODE WILL BE MOVED INSIDE TCP_CONN_ACK()
+
+			instead of incrementing the window directly to the receivers input window
+			apply congestion control 
+
+			if (c->pcb.snd_una != ack) {
+				if(c->pcb.cong_wnd < c->pcb.ssthresh){
+					// slow start
+					c->pcb.cong_wnd += MSS;
+					c->rep_acks = 0; 
+				}
+				else{
+					// congestion avoidance
+					c->pcb.cong_wnd += MSS/c->pcb.cong_wnd;
+					c->rep_acks = 0; 
+				}
+			}
+			*/
 			tcp_conn_ack(c, &q);
 		}
 
@@ -253,6 +272,10 @@ void tcp_rx_conn(struct trans_entry *e, struct mbuf *m)
 			c->pcb.snd_wl2 = ack;
 			c->rep_acks = 0;
 		}
+		/*
+		// ensuring flow control and congestion control
+		c->pcb.snd_wnd = min(win, c->pcb.cong_wnd) 
+		*/
 	}
 
 	nxt_wnd = (uint64_t)m->seg_end;
@@ -402,6 +425,12 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 				c->pcb.snd_wnd = win;
 				c->pcb.snd_wl1 = seq;
 				c->pcb.snd_wl2 = ack;
+				/*
+				// Initialise the congestion control params
+				c->pcb.cong_wnd = c->pcb.iss;
+				c->pcb.ssthresh = win; // initialising the ssthresh value to receivers input window
+				c->rep_acks = 0;
+				*/
 				tcp_conn_set_state(c, TCP_STATE_ESTABLISHED);
 			} else {
 				ret = tcp_tx_ctl(c, TCP_SYN | TCP_ACK, &opts);
@@ -456,6 +485,12 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		c->pcb.snd_wnd = win;
 		c->pcb.snd_wl1 = seq;
 		c->pcb.snd_wl2 = ack;
+		/*
+		// Initialise the congestion control params
+		c->pcb.cong_wnd = c->pcb.iss;
+		c->pcb.ssthresh = win; // initialising the ssthresh value to receivers input window
+		c->rep_acks = 0;
+		*/
 		tcp_conn_set_state(c, TCP_STATE_ESTABLISHED);
 	}
 
@@ -465,6 +500,25 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		/* did sent segments get acked? */
 		if (c->pcb.snd_una != ack) {
 			c->pcb.snd_una = ack;
+			/*
+			THIS PART OF CODE WILL BE MOVED INSIDE TCP_CONN_ACK()
+
+			instead of incrementing the window directly to the receivers input window
+			apply congestion control 
+
+			if (c->pcb.snd_una != ack) {
+				if(c->pcb.cong_wnd < ssthresh){
+					// slow start
+					c->pcb.cong_wnd += MSS;
+					c->rep_acks = 0; 
+				}
+				else{
+					// congestion avoidance
+					c->pcb.cong_wnd += MSS/c->pcb.cong_wnd;
+					c->rep_acks = 0; 
+				}
+			}
+			*/
 			tcp_conn_ack(c, &q);
 		} else {
 			ack_same = true;
@@ -482,6 +536,11 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 				c->pcb.snd_wl2 = ack;
 			}
 		}
+		/*
+		// ensuring flow control and congestion control
+		c->pcb.snd_wnd = min(win, c->pcb.cong_wnd) 
+		*/
+
 	} else if (wraps_gt(ack, snd_nxt)) {
 		do_ack = true;
 		goto done;
@@ -500,6 +559,11 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		     len == 0 && !wnd_updated)) {
 		c->rep_acks++;
 		if (c->rep_acks >= TCP_FAST_RETRANSMIT_THRESH) {
+			/*
+			// 3-duplicate acks
+			c->pcb.ssthresh = c->pcb.cong_wnd/2;
+			c->pcb.cong_wnd = c->pcb.ssthresh;
+			*/
 			if (c->tx_exclusive) {
 				c->do_fast_retransmit = true;
 				c->fast_retransmit_last_ack = ack;

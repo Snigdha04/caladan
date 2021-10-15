@@ -95,6 +95,12 @@ static void tcp_handle_timeouts(tcpconn_t *c, uint64_t now)
 			log_debug("tcp: %p retransmission timeout", c);
 			/* It is safe to take a reference, since state != closed */
 			tcp_conn_get(c);
+			/*
+			congestion control on timeout
+			c->pcb.ssthresh = c->pcb.cong_wnd / 2;
+			c->pcb.cong_wnd = c->pcb.iss;
+			c->rep_acks = 0;
+			*/
 			do_retransmit = true;
 		}
 	}
