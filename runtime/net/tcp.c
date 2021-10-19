@@ -3,6 +3,7 @@
  */
 
 #include <string.h>
+// #include <stdio.h>
 
 #include <base/stddef.h>
 #include <base/hash.h>
@@ -167,7 +168,28 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 
 		list_pop(&c->txq, struct mbuf, link);
 		list_add_tail(freeq, &m->link);
-	}
+		/*
+		THIS PART OF CODE WILL BE MOVED INSIDE TCP_CONN_ACK()
+
+		instead of incrementing the window directly to the receivers input window
+		apply congestion control 
+
+		*/
+		
+		// if(c->pcb.cong_wnd < c->pcb.ssthresh){
+		// 	// slow start
+		// 	c->pcb.cong_wnd += c->pcb.snd_mss;
+		// 	c->rep_acks = 0; 
+		// }
+		// else{
+		// 	// congestion avoidance
+		// 	c->pcb.cong_wnd += c->pcb.snd_mss/c->pcb.cong_wnd;
+		// 	c->rep_acks = 0; 
+		// }
+
+		// printf("snd_wnd: %u\n", c->pcb.snd_wnd);
+
+	}	
 }
 
 /**
