@@ -536,10 +536,9 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 				c->pcb.snd_wl2 = ack;
 			}
 		}
-		/*
-		// ensuring flow control and congestion control
-		c->pcb.snd_wnd = min(win, c->pcb.cong_wnd) 
-		*/
+
+		/* ensuring flow control and congestion control */
+		// c->pcb.snd_wnd = (win < c->pcb.cong_wnd) ? win : c->pcb.cong_wnd;
 
 	} else if (wraps_gt(ack, snd_nxt)) {
 		do_ack = true;

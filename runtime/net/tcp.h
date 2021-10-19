@@ -79,11 +79,9 @@ struct tcp_pcb {
 	uint32_t	rcv_wscale;	/* the receive window scale */
 	uint32_t	rcv_mss;	/* the send max segment size */
 
-	/*
-	// Congestion control params
-	uint32_t cong_wnd;
-	uint32_t ssthresh;
-	*/
+	// /* Congestion control params (RFC 5681 Section 3) */
+	// uint32_t 	cong_wnd;   /* the congestion window */
+	// uint32_t 	ssthresh;	/* the slow start threshold */
 };
 
 /* the TCP connection struct */
