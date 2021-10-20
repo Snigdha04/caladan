@@ -272,10 +272,11 @@ void tcp_rx_conn(struct trans_entry *e, struct mbuf *m)
 			c->pcb.snd_wl2 = ack;
 			c->rep_acks = 0;
 		}
-		/*
-		// ensuring flow control and congestion control
-		c->pcb.snd_wnd = min(win, c->pcb.cong_wnd) 
-		*/
+#if(CONGESTION_CONTROL_ENABLED)	
+		/* ensuring flow control and congestion control */
+		c->pcb.snd_wnd = MIN(win, c->pcb.cong_wnd);
+#endif
+
 	}
 
 	nxt_wnd = (uint64_t)m->seg_end;
@@ -425,12 +426,12 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 				c->pcb.snd_wnd = win;
 				c->pcb.snd_wl1 = seq;
 				c->pcb.snd_wl2 = ack;
-				/*
+#if(CONGESTION_CONTROL_ENABLED)	
 				// Initialise the congestion control params
-				c->pcb.cong_wnd = c->pcb.iss;
+				c->pcb.cong_wnd = c->pcb.snd_mss;
 				c->pcb.ssthresh = win; // initialising the ssthresh value to receivers input window
+#endif
 				c->rep_acks = 0;
-				*/
 				tcp_conn_set_state(c, TCP_STATE_ESTABLISHED);
 			} else {
 				ret = tcp_tx_ctl(c, TCP_SYN | TCP_ACK, &opts);
@@ -485,12 +486,13 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		c->pcb.snd_wnd = win;
 		c->pcb.snd_wl1 = seq;
 		c->pcb.snd_wl2 = ack;
-		/*
+
+#if(CONGESTION_CONTROL_ENABLED)		
 		// Initialise the congestion control params
-		c->pcb.cong_wnd = c->pcb.iss;
+		c->pcb.cong_wnd = c->pcb.snd_mss;
 		c->pcb.ssthresh = win; // initialising the ssthresh value to receivers input window
 		c->rep_acks = 0;
-		*/
+#endif		
 		tcp_conn_set_state(c, TCP_STATE_ESTABLISHED);
 	}
 
@@ -536,9 +538,10 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 				c->pcb.snd_wl2 = ack;
 			}
 		}
-
+#if(CONGESTION_CONTROL_ENABLED)
 		/* ensuring flow control and congestion control */
-		// c->pcb.snd_wnd = (win < c->pcb.cong_wnd) ? win : c->pcb.cong_wnd;
+		c->pcb.snd_wnd = MIN(win, c->pcb.cong_wnd);
+#endif
 
 	} else if (wraps_gt(ack, snd_nxt)) {
 		do_ack = true;
@@ -558,17 +561,20 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		     len == 0 && !wnd_updated)) {
 		c->rep_acks++;
 		if (c->rep_acks >= TCP_FAST_RETRANSMIT_THRESH) {
-			/*
+#if(CONGESTION_CONTROL_ENABLED)
 			// 3-duplicate acks
 			c->pcb.ssthresh = c->pcb.cong_wnd/2;
-			c->pcb.cong_wnd = c->pcb.ssthresh;
-			*/
+			c->pcb.cong_wnd = c->pcb.ssthresh + 3;
+#endif
 			if (c->tx_exclusive) {
 				c->do_fast_retransmit = true;
 				c->fast_retransmit_last_ack = ack;
 			} else {
 				retransmit = tcp_tx_fast_retransmit_start(c);
 			}
+#if(CONGESTION_CONTROL_ENABLED)
+			c->pcb.cong_wnd = c->pcb.ssthresh;
+#endif
 			c->rep_acks = 0;
 		}
 	} else if (c->pcb.snd_una == ack) {

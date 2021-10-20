@@ -27,6 +27,7 @@
 #define TCP_FAST_RETRANSMIT_THRESH 3
 #define TCP_OOO_MAX_SIZE	2048
 #define TCP_RETRANSMIT_BATCH	16
+#define CONGESTION_CONTROL_ENABLED (0)
 
 /**
  * tcp_calculate_mss - given an ethernet MTU, returns the TCP MSS
@@ -78,10 +79,11 @@ struct tcp_pcb {
 	uint32_t	irs;		/* initial receive sequence number */
 	uint32_t	rcv_wscale;	/* the receive window scale */
 	uint32_t	rcv_mss;	/* the send max segment size */
-
-	// /* Congestion control params (RFC 5681 Section 3) */
-	// uint32_t 	cong_wnd;   /* the congestion window */
-	// uint32_t 	ssthresh;	/* the slow start threshold */
+#if(CONGESTION_CONTROL_ENABLED)
+	/* Congestion control params (RFC 5681 Section 3) */
+	uint32_t 	cong_wnd;   /* the congestion window */
+	uint32_t 	ssthresh;	/* the slow start threshold */
+#endif
 };
 
 /* the TCP connection struct */

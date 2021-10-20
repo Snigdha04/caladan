@@ -3,7 +3,7 @@
  */
 
 #include <string.h>
-// #include <stdio.h>
+#include <stdio.h>
 
 #include <base/stddef.h>
 #include <base/hash.h>
@@ -14,6 +14,11 @@
 #include <runtime/timer.h>
 
 #include "tcp.h"
+
+// spinlock_t graphFileLock;
+static DEFINE_SPINLOCK(graphFileLock);
+// file pointer to cwnd_values.txt
+FILE *fp = NULL;
 
 /* protects @tcp_conns */
 static DEFINE_SPINLOCK(tcp_lock);
@@ -96,12 +101,12 @@ static void tcp_handle_timeouts(tcpconn_t *c, uint64_t now)
 			log_debug("tcp: %p retransmission timeout", c);
 			/* It is safe to take a reference, since state != closed */
 			tcp_conn_get(c);
-			/*
-			congestion control on timeout
+#if(CONGESTION_CONTROL_ENABLED)
+			// congestion control on timeout
 			c->pcb.ssthresh = c->pcb.cong_wnd / 2;
-			c->pcb.cong_wnd = c->pcb.iss;
+			c->pcb.cong_wnd = c->pcb.snd_mss;
+#endif		
 			c->rep_acks = 0;
-			*/
 			do_retransmit = true;
 		}
 	}
@@ -174,6 +179,8 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 
 		list_pop(&c->txq, struct mbuf, link);
 		list_add_tail(freeq, &m->link);
+
+#if(CONGESTION_CONTROL_ENABLED)
 		/*
 		THIS PART OF CODE WILL BE MOVED INSIDE TCP_CONN_ACK()
 
@@ -182,18 +189,25 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 
 		*/
 		
-		// if(c->pcb.cong_wnd < c->pcb.ssthresh){
-		// 	// slow start
-		// 	c->pcb.cong_wnd += c->pcb.snd_mss;
-		// 	c->rep_acks = 0; 
-		// }
-		// else{
-		// 	// congestion avoidance
-		// 	c->pcb.cong_wnd += c->pcb.snd_mss/c->pcb.cong_wnd;
-		// 	c->rep_acks = 0; 
-		// }
+		if(c->pcb.cong_wnd < c->pcb.ssthresh){
+			// slow start
+			c->pcb.cong_wnd += c->pcb.snd_mss;
+			c->rep_acks = 0; 
+		}
+		else{
+			// congestion avoidance
+			c->pcb.cong_wnd += c->pcb.snd_mss/c->pcb.cong_wnd;  // should be changed to (MSS)^2 / cong_wnd ?
+			c->rep_acks = 0; 
+		}
+#endif
 
-		// printf("snd_wnd: %u\n", c->pcb.snd_wnd);
+		spin_lock_np(&graphFileLock);
+		if(fp) {
+			fprintf(fp, "%u\n", c->pcb.snd_wnd);
+		}
+		spin_unlock_np(&graphFileLock);
+		
+		// printf("%u\n", c->pcb.snd_wnd);
 
 	}	
 }
@@ -263,6 +277,14 @@ static uint32_t tcp_scale_window(uint32_t maxwin)
 tcpconn_t *tcp_conn_alloc(void)
 {
 	tcpconn_t *c;
+
+	// cwnd_file open to plot graphs 
+	// spin_lock_init(&graphFileLock);
+	spin_lock_np(&graphFileLock);
+	if(!fp) {
+		fp = fopen("./cwnd_values.txt", "w+");
+	}
+	spin_unlock_np(&graphFileLock);
 
 	c = smalloc(sizeof(*c));
 	if (!c)
@@ -365,6 +387,13 @@ static void tcp_conn_release(struct rcu_head *h)
 	mbuf_list_free(&c->rxq);
 	mbuf_list_free(&c->txq);
 	sfree(c);
+
+	spin_lock_np(&graphFileLock);
+	if(fp) {
+		fclose(fp);
+		fp = NULL;
+	}
+	spin_unlock_np(&graphFileLock);
 }
 
 /**
