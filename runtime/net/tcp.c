@@ -196,7 +196,12 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 		}
 		else{
 			// congestion avoidance
-			c->pcb.cong_wnd += c->pcb.snd_mss/c->pcb.cong_wnd;  // should be changed to (MSS)^2 / cong_wnd ?
+			if(c->pcb.cong_wnd != 0) {
+				c->pcb.cong_wnd += c->pcb.snd_mss/c->pcb.cong_wnd;  // should be changed to (MSS)^2 / cong_wnd ?
+			}
+			else {
+				c->pcb.cong_wnd = c->pcb.snd_mss;
+			}
 			c->rep_acks = 0; 
 		}
 #endif

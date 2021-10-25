@@ -27,7 +27,7 @@
 #define TCP_FAST_RETRANSMIT_THRESH 3
 #define TCP_OOO_MAX_SIZE	2048
 #define TCP_RETRANSMIT_BATCH	16
-#define CONGESTION_CONTROL_ENABLED (0)
+#define CONGESTION_CONTROL_ENABLED (1)
 
 /**
  * tcp_calculate_mss - given an ethernet MTU, returns the TCP MSS
