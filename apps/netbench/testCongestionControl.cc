@@ -54,7 +54,7 @@ struct uptime {
 constexpr uint64_t kNetbenchPort = 8001;
 struct payload {
   uint64_t work_iterations;
-  char data[100000];
+  char data[20];
 };
 
 int request_rate_per_us;
@@ -66,9 +66,12 @@ FILE * f;
 
 void ServerWorker(std::unique_ptr<rt::TcpConn> c){
     payload p;
+    printf("----------Started Server Worker-----------\n");
     while(1) {
         // Receive a work request.
-        ssize_t ret = c->ReadFull(&p, sizeof(p));
+        printf("----------Packet Read before -----------\n");
+        ssize_t ret = c->ReadFull(&p, sizeof(payload)/10000);
+        printf("----------Packet Read after-----------\n");
         if (ret != static_cast<ssize_t>(sizeof(p))) {
             if (ret == 0 || ret == -ECONNRESET) break;
             log_err("read failed, ret = %ld", ret);
@@ -76,7 +79,7 @@ void ServerWorker(std::unique_ptr<rt::TcpConn> c){
         }
 
         // Perform fake work if requested.
-        uint64_t workn = ntoh64(p.work_iterations);
+        // uint64_t workn = ntoh64(p.work_iterations);
         // sleep(workn);
         // tweak the payload
         // we will be just printing it for now
@@ -92,6 +95,7 @@ void ServerWorker(std::unique_ptr<rt::TcpConn> c){
         //     break;
         // }
     }
+    printf("----------Exitted while loop-----------\n");
 }
 
 void ServerHandler(void *arg) {
@@ -136,7 +140,7 @@ void ClientWorker(rt::TcpConn *c, rt::WaitGroup *starter){
 
     int ch = getc(f);
     int i = 0;
-    while (ch != EOF) {
+    while (ch != EOF && i < 20) {
         p.data[i] = ch;
         printf("%c \n", ch);
         i++;
@@ -170,7 +174,7 @@ void ClientWorker(rt::TcpConn *c, rt::WaitGroup *starter){
         // printf("The input file content:\n %s \n", input);
         // p.data = input;
 
-        ssize_t ret = c->WriteFull(&p, sizeof(p));
+        ssize_t ret = c->WriteFull(&p, sizeof(payload));
         if (ret != static_cast<ssize_t>(sizeof(payload)))
             panic("write failed, ret = %ld", ret);
         sleep(request_rate_per_us);
