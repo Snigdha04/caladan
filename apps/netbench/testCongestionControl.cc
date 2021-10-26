@@ -71,7 +71,7 @@ void ServerWorker(std::unique_ptr<rt::TcpConn> c){
         // Receive a work request.
         printf("----------Packet Read before -----------\n");
         ssize_t ret = c->ReadFull(&p, sizeof(p));
-        printf("----------Packet Read after-----------\n %d \n", sizeof(p));
+        printf("----------Packet Read after-----------\n %lu \n", sizeof(p));
         if (ret != static_cast<ssize_t>(sizeof(p))) {
             if (ret == 0 || ret == -ECONNRESET) break;
             log_err("read failed, ret = %ld", ret);
