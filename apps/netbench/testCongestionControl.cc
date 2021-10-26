@@ -67,11 +67,11 @@ FILE * f;
 void ServerWorker(std::unique_ptr<rt::TcpConn> c){
     payload p;
     printf("----------Started Server Worker-----------\n");
-    while(1) {
+    while(true) {
         // Receive a work request.
         printf("----------Packet Read before -----------\n");
-        ssize_t ret = c->ReadFull(&p, sizeof(payload)/10000);
-        printf("----------Packet Read after-----------\n");
+        ssize_t ret = c->ReadFull(&p, sizeof(p));
+        printf("----------Packet Read after-----------\n %d \n", sizeof(p));
         if (ret != static_cast<ssize_t>(sizeof(p))) {
             if (ret == 0 || ret == -ECONNRESET) break;
             log_err("read failed, ret = %ld", ret);
@@ -148,12 +148,12 @@ void ClientWorker(rt::TcpConn *c, rt::WaitGroup *starter){
     }
     p.data[i] = EOF;
     fclose(f);
-    getchar();
+    // getchar();
     printf("The input file content:\n %s \n", p.data);
     // p.data = input;
 
     // initiate a writer on this thread
-    while(1) {
+    while(true) {
         // payload p;
 
         // // populate the payload here
@@ -173,11 +173,12 @@ void ClientWorker(rt::TcpConn *c, rt::WaitGroup *starter){
         // getchar();
         // printf("The input file content:\n %s \n", input);
         // p.data = input;
-
+        printf("-----------packet write----------------");
         ssize_t ret = c->WriteFull(&p, sizeof(payload));
         if (ret != static_cast<ssize_t>(sizeof(payload)))
             panic("write failed, ret = %ld", ret);
-        sleep(request_rate_per_us);
+        printf("-----------packet write finished----------------");
+        // sleep(request_rate_per_us);
     }
 
     c->Shutdown(SHUT_RDWR);
