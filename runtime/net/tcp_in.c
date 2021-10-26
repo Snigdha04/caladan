@@ -274,7 +274,9 @@ void tcp_rx_conn(struct trans_entry *e, struct mbuf *m)
 		}
 #if(CONGESTION_CONTROL_ENABLED)	
 		/* ensuring flow control and congestion control */
-		c->pcb.snd_wnd = MIN(win, c->pcb.cong_wnd);
+		// c->pcb.snd_wnd = MIN(win, c->pcb.cong_wnd);
+		/* Make it just congestion control for testing purpose*/
+		c->pcb.snd_wnd = c->pcb.cong_wnd;
 #endif
 
 	}
@@ -429,7 +431,8 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 #if(CONGESTION_CONTROL_ENABLED)	
 				// Initialise the congestion control params
 				c->pcb.cong_wnd = c->pcb.snd_mss;
-				c->pcb.ssthresh = win; // initialising the ssthresh value to receivers input window
+				c->pcb.snd_wnd = c->pcb.cong_wnd;
+				c->pcb.ssthresh = win; // initialising the ssthresh value to senders' receive window
 #endif
 				c->rep_acks = 0;
 				tcp_conn_set_state(c, TCP_STATE_ESTABLISHED);
@@ -487,9 +490,10 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		c->pcb.snd_wl1 = seq;
 		c->pcb.snd_wl2 = ack;
 
-#if(CONGESTION_CONTROL_ENABLED)		
+#if(CONGESTION_CONTROL_ENABLED)
 		// Initialise the congestion control params
 		c->pcb.cong_wnd = c->pcb.snd_mss;
+		c->pcb.snd_wnd = c->pcb.cong_wnd;
 		c->pcb.ssthresh = win; // initialising the ssthresh value to receivers input window
 		c->rep_acks = 0;
 #endif		
@@ -540,7 +544,9 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		}
 #if(CONGESTION_CONTROL_ENABLED)
 		/* ensuring flow control and congestion control */
-		c->pcb.snd_wnd = MIN(win, c->pcb.cong_wnd);
+		// c->pcb.snd_wnd = MIN(win, c->pcb.cong_wnd);
+		/* Make it just congestion control for testing purpose*/
+		c->pcb.snd_wnd = c->pcb.cong_wnd;
 #endif
 
 	} else if (wraps_gt(ack, snd_nxt)) {
