@@ -1,0 +1,127 @@
+syntax = "proto2";
+
+package router;
+
+
+
+
+message RequestHeader {
+  required int32 user_id = 1;
+  optional int32 user_request_id = 2;
+}
+
+message ResponseHeader {
+  optional int32 user_request_id = 1;
+  optional int32 status = 2;
+}
+
+message SetRouterSpecArg {
+    required RequestHeader header = 1;
+    optional int32 max_batch_size = 2;
+}
+
+message SetRouterSpecReturn {
+    required ResponseHeader header = 1;
+}
+
+
+
+enum TorchTensorType {
+    TFLOAT = 0;
+    TDOUBLE = 1;
+    TCOMPLEX128 = 3;
+    TCFLOAT = 4;
+    TFLOAT16 = 5;
+    TBFLOAT16 = 6;
+    TUINT8 = 7;
+    TINT8 = 8;
+    TINT16 = 9;
+    TINT = 10;
+    TLONG = 11;
+    TBOOL = 12;
+
+}
+
+message TorchTensorArg {
+    required bytes byte_data = 1;
+    // repeated int32 size = 2;
+    // required TorchTensorType type = 3;
+}
+
+enum ArgType {
+    DOUBLE = 1;
+    FLOAT = 2;
+    INT32 = 3;
+    INT64 = 4;
+    UINT64 = 5;
+    SINT32 = 6;
+    SINT64 = 7;
+    FIXED32 = 8;
+    FIXED64 = 9;
+    SFIXED32 = 10;
+    SFIXED64 = 11;
+    BOOL = 12;
+    STRING = 13;
+    TORCHTENSOR = 14;
+}
+
+message Arg {
+   optional double double_arg = 1;
+   optional float float_arg = 2;
+   optional int32 int32_arg = 3;
+   optional int64 int64_arg = 4;
+   optional uint64 uint64_arg = 5;
+   optional sint32 sint32_arg = 6;
+   optional sint64 sint64_arg = 7;
+   optional fixed32 fixed32_arg = 8;
+   optional fixed64 fixed64_arg = 9;
+   optional sfixed32 sfixed32_arg = 10;
+   optional sfixed64 sfixed64_arg = 11;
+   optional bool bool_arg = 12;
+   optional string string_arg = 13;
+   optional TorchTensorArg torch_tensor_arg = 14;
+   required ArgType arg_type = 15;
+}
+
+message InferEnqueueArg {
+    required RequestHeader header = 1;
+    repeated Arg args = 2;
+    required int32 slo_ms = 3;
+}
+
+message InferEnqueueReturn {
+    required ResponseHeader header = 1;
+    repeated Arg args = 2;
+}
+
+message SubnetDimension {
+    optional bytes depth = 1;
+    optional bytes elastic_ratio = 2;
+    optional bytes width_multiplier = 3;
+
+}
+message InferWorkerArg{
+    repeated InferEnqueueArg worker_args = 1;
+    optional SubnetDimension subnet_dimension = 2;
+}
+
+message InferWorkerReturn{
+    repeated InferEnqueueReturn worker_args = 1;
+}
+message LoadModelWorkerArg{
+    required string model_path = 1;
+}
+
+message LoadModelWorkerReturn{
+    required int32 status = 1;
+}
+
+service RouterService {
+  rpc InferEnqueue(InferEnqueueArg) returns (InferEnqueueReturn);
+  rpc SetRouterSpec(SetRouterSpecArg) returns (SetRouterSpecReturn);
+}
+
+service WorkerService {
+  rpc InferWorker(InferWorkerArg) returns (InferWorkerReturn);
+  rpc LoadModelWorker(LoadModelWorkerArg) returns (LoadModelWorkerReturn);
+}
