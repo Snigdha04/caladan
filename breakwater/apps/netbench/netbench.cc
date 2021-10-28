@@ -38,7 +38,7 @@ std::time_t timex;
 barrier_t barrier;
 
 constexpr uint16_t kBarrierPort = 41;
-#define MAXDATASIZE 4096
+#define MAXDATASIZE 1024
 
 const struct crpc_ops *crpc_ops;
 const struct srpc_ops *srpc_ops;
@@ -456,9 +456,9 @@ void RpcServer(struct srpc_ctx *ctx) {
     log_err("got invalid RPC len %ld", ctx->req_len);
     return;
   }
-  printf("----------Packet Read after 1-----------\n");
+  // printf("----------Packet Read after 1-----------\n");
   const payload *in = reinterpret_cast<const payload *>(ctx->req_buf);
-  printf("----------Packet Read after 2-----------\n");
+  // printf("----------Packet Read after 2-----------\n");
 
   // Perform the synthetic work.
   // uint64_t workn = ntoh64(in->work_iterations);
@@ -470,22 +470,25 @@ void RpcServer(struct srpc_ctx *ctx) {
   // Craft a response.
   ctx->resp_len = sizeof(payload);
   payload *out = reinterpret_cast<payload *>(ctx->resp_buf);
-  printf("----------Packet Read after 3-----------\n");
+  // printf("----------Packet Read after 3-----------\n");
   memcpy(out, in, sizeof(*out));
-  printf("----------Packet Read after 4-----------\n");
+  // printf("----------Packet Read after 4-----------\n");
 
+  // std::string data;
+  char data[MAXDATASIZE];
+  memcpy(data, out->buf, sizeof(out->buf));
+  data[sizeof(out->buf)] = '\0';
   
-  out->buf[sizeof(out->buf)] = '\0';
-  std::string data = out->buf;
-  printf("----------Packet Read after 5 data: %s-----------\n", data.c_str());
   router::RequestHeader p;
+  // std::string s(data);
+  // printf("----------Packet Read after 5 data: %s-----------\n", s.c_str());
   p.ParseFromString(data);
-  printf("----------Packet Read after 5-----------\n");
+  // printf("----------Packet Read after 5-----------\n");
 
   printf("People:\n");
   printf("user_id:\t %d \n", p.user_id());
   printf("request id:\t %d \n", p.user_request_id());
-  printf("----------Packet Read after 6-----------\n");
+  // printf("----------Packet Read after 6-----------\n");
 
   out->success = true;
   out->tsc_end = hton64(rdtscp(&out->cpu));
@@ -620,7 +623,7 @@ std::vector<work_unit> ClientWorker(
     req.set_user_id(1);
     req.set_user_request_id(12312);
     req.SerializeToString(&msg);
-    sprintf(p.buf, "%s", msg.c_str());
+    memcpy(p.buf, msg.c_str(), sizeof(msg));
     
     p.success = false;
     p.work_iterations = hton64(w[i].work_us * kIterationsPerUS);
