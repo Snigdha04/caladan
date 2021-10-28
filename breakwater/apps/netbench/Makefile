@@ -27,9 +27,9 @@ RUNTIME_LIBS := $(RUNTIME_LIBS) $(BW_LIBS) -lnuma
 # must be first
 all: netbench testProtoBuff
 
-netbench: $(lib_obj) $(netbench_obj) $(librt_libs) $(libbw_libs) $(RUNTIME_DEPS)
-	$(LDXX) -o $@ $(LDFLAGS) $(lib_obj) $(netbench_obj) \
-	$(librt_libs) $(libbw_libs) $(RUNTIME_LIBS)
+netbench: $(lib_obj) $(netbench_obj) $(router_obj) $(librt_libs) $(libbw_libs) $(RUNTIME_DEPS)
+	$(LDXX) -o $@ $(LDFLAGS) $(lib_obj) $(netbench_obj) $(router_obj) \
+	$(librt_libs) $(libbw_libs) $(RUNTIME_LIBS) -lprotobuf
 
 testProtoBuff: $(lib_obj) $(testProtoBuff_obj) $(router_obj) $(librt_libs) $(libbw_libs) $(RUNTIME_DEPS)
 	$(LDXX) -o $@ $(LDFLAGS) $(lib_obj) $(testProtoBuff_obj) $(router_obj) \

@@ -15,7 +15,7 @@ extern "C" {
 #include "cc/thread.h"
 #include "cc/timer.h"
 #include "breakwater/rpc++.h"
-
+#include "./router.pb.h"
 #include "synthetic_worker.h"
 
 #include <algorithm>
@@ -38,6 +38,7 @@ std::time_t timex;
 barrier_t barrier;
 
 constexpr uint16_t kBarrierPort = 41;
+#define MAXDATASIZE 4096
 
 const struct crpc_ops *crpc_ops;
 const struct srpc_ops *srpc_ops;
@@ -442,6 +443,7 @@ struct payload {
   uint64_t tsc_end;
   uint32_t cpu;
   uint64_t server_queue;
+  char buf[MAXDATASIZE];
 };
 
 // The maximum lateness to tolerate before dropping egress samples.
@@ -449,23 +451,42 @@ constexpr uint64_t kMaxCatchUpUS = 5;
 
 void RpcServer(struct srpc_ctx *ctx) {
   // Validate and parse the request.
+  printf("----------Packet Read before -----------\n");
   if (unlikely(ctx->req_len != sizeof(payload))) {
     log_err("got invalid RPC len %ld", ctx->req_len);
     return;
   }
+  printf("----------Packet Read after 1-----------\n");
   const payload *in = reinterpret_cast<const payload *>(ctx->req_buf);
+  printf("----------Packet Read after 2-----------\n");
 
   // Perform the synthetic work.
-  uint64_t workn = ntoh64(in->work_iterations);
-  int core_id = get_current_affinity();
-  SyntheticWorker *w = workers[core_id];
+  // uint64_t workn = ntoh64(in->work_iterations);
+  // int core_id = get_current_affinity();
+  // SyntheticWorker *w = workers[core_id];
+  // if (workn != 0) w->Work(workn);
 
-  if (workn != 0) w->Work(workn);
 
   // Craft a response.
   ctx->resp_len = sizeof(payload);
   payload *out = reinterpret_cast<payload *>(ctx->resp_buf);
+  printf("----------Packet Read after 3-----------\n");
   memcpy(out, in, sizeof(*out));
+  printf("----------Packet Read after 4-----------\n");
+
+  
+  out->buf[sizeof(out->buf)] = '\0';
+  std::string data = out->buf;
+  printf("----------Packet Read after 5 data: %s-----------\n", data.c_str());
+  router::RequestHeader p;
+  p.ParseFromString(data);
+  printf("----------Packet Read after 5-----------\n");
+
+  printf("People:\n");
+  printf("user_id:\t %d \n", p.user_id());
+  printf("request id:\t %d \n", p.user_request_id());
+  printf("----------Packet Read after 6-----------\n");
+
   out->success = true;
   out->tsc_end = hton64(rdtscp(&out->cpu));
   out->cpu = hton32(out->cpu);
@@ -539,7 +560,7 @@ std::vector<work_unit> ClientWorker(
       ssize_t ret = c->Recv(&rp, sizeof(rp), &latency);
       if (ret != static_cast<ssize_t>(sizeof(rp))) {
         if (ret == 0 || ret < 0) break;
-	panic("read failed, ret = %ld", ret);
+	      panic("read failed, ret = %ld", ret);
       }
 
       uint64_t now = microtime();
@@ -548,7 +569,7 @@ std::vector<work_unit> ClientWorker(
       if (!rp.success) {
         w[idx].duration_us = latency;
         w[idx].success = false;
-	continue;
+	      continue;
       }
 
       w[idx].duration_us = now - timings[idx];
@@ -568,9 +589,10 @@ std::vector<work_unit> ClientWorker(
   barrier();
   auto expstart = steady_clock::now();
   barrier();
-
   payload p;
   auto wsize = w.size();
+
+  printf("\n-----------client worker wsize : %lu----------------\n", wsize);
 
   for (unsigned int i = 0; i < wsize; ++i) {
     barrier();
@@ -590,7 +612,16 @@ std::vector<work_unit> ClientWorker(
 
     timings[i] = microtime();
 
-    // Send an RPC request.
+    // printf("-------------Populating payload-----------\n");
+
+    // Send an RPC request.   
+    std::string msg; 
+    router::RequestHeader req;
+    req.set_user_id(1);
+    req.set_user_request_id(12312);
+    req.SerializeToString(&msg);
+    sprintf(p.buf, "%s", msg.c_str());
+    
     p.success = false;
     p.work_iterations = hton64(w[i].work_us * kIterationsPerUS);
     p.index = hton64(i);
@@ -598,6 +629,7 @@ std::vector<work_unit> ClientWorker(
     if (ret == -ENOBUFS) continue;
     if (ret != static_cast<ssize_t>(sizeof(p)))
       panic("write failed, ret = %ld", ret);
+    // printf("-----------packet write finished----------------");
   }
 
   // rt::Sleep(1 * rt::kSeconds);
@@ -621,6 +653,7 @@ std::vector<work_unit> RunExperiment(
     if (unlikely(outc == nullptr)) panic("couldn't connect to raddr.");
     conns.emplace_back(std::move(outc));
   }
+  printf("----------Run Experiment-----------\n");
 
   // Launch a worker thread for each connection.
   rt::WaitGroup starter(threads);
@@ -1121,11 +1154,13 @@ void AgentHandler(void *arg) {
 
 void ClientHandler(void *arg) {
   int pos;
+  // printf("----------Steady State Experiment-----------\n");
 
   if (total_agents > 1) {
     b = new NetBarrier(total_agents - 1);
     BUG_ON(!b);
   }
+  // printf("----------Steady State Experiment-----------\n");
 
   calculate_rates();
 
@@ -1136,10 +1171,13 @@ void ClientHandler(void *arg) {
   /* Print Header */
   PrintHeader(std::cout);
 
-  for (double i : offered_loads) {
-    SteadyStateExperiment(threads, i, st);
-    rt::Sleep(1000000);
-  }
+  // for (double i : offered_loads) {
+
+  printf("----------Steady State Experiment-----------\n");
+  SteadyStateExperiment(threads, 1000.0, st);
+
+  //   rt::Sleep(1000000);
+  // }
 
   pos = json_out.tellp();
   json_out.seekp(pos - 2);
