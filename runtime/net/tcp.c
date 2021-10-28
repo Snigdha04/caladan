@@ -103,8 +103,10 @@ static void tcp_handle_timeouts(tcpconn_t *c, uint64_t now)
 			tcp_conn_get(c);
 #if(CONGESTION_CONTROL_ENABLED)
 			// congestion control on timeout
+			printf("Timeout !!! \n");
 			c->pcb.ssthresh = c->pcb.cong_wnd / 2;
 			c->pcb.cong_wnd = c->pcb.snd_mss;
+			printf("new ssthresh : %u \t new cong_win : %u\n", c->pcb.ssthresh, c->pcb.cong_wnd);
 #endif		
 			c->rep_acks = 0;
 			do_retransmit = true;
@@ -179,6 +181,7 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 
 		list_pop(&c->txq, struct mbuf, link);
 		list_add_tail(freeq, &m->link);
+		// int isSlowStart = 0;
 
 #if(CONGESTION_CONTROL_ENABLED)
 		/*
@@ -193,11 +196,12 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 			// slow start
 			c->pcb.cong_wnd += c->pcb.snd_mss;
 			c->rep_acks = 0; 
+			// isSlowStart = 1;
 		}
 		else{
 			// congestion avoidance
 			if(c->pcb.cong_wnd != 0) {
-				c->pcb.cong_wnd += c->pcb.snd_mss/c->pcb.cong_wnd;  // should be changed to (MSS)^2 / cong_wnd ?
+				c->pcb.cong_wnd += (c->pcb.snd_mss * c->pcb.snd_mss)/c->pcb.cong_wnd;
 			}
 			else {
 				c->pcb.cong_wnd = c->pcb.snd_mss;
@@ -206,13 +210,12 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 		}
 #endif
 
-		spin_lock_np(&graphFileLock);
-		if(fp) {
-			fprintf(fp, "%u\n", c->pcb.snd_wnd);
-		}
-		spin_unlock_np(&graphFileLock);
+		// spin_lock_np(&graphFileLock);
+		// if(fp) {
+		// 	fprintf(fp, "%u\n", c->pcb.snd_wnd);
+		// }
+		// spin_unlock_np(&graphFileLock);
 		
-		// printf("%u\n", c->pcb.snd_wnd);
 
 	}	
 }
@@ -287,7 +290,7 @@ tcpconn_t *tcp_conn_alloc(void)
 	// spin_lock_init(&graphFileLock);
 	spin_lock_np(&graphFileLock);
 	if(!fp) {
-		fp = fopen("./cwnd_values.txt", "w+");
+		fp = fopen("/users/Snig04/cwnd_values.txt", "w+");
 	}
 	spin_unlock_np(&graphFileLock);
 
@@ -1005,7 +1008,7 @@ static int tcp_write_wait(tcpconn_t *c, size_t *winlen)
 	/* drop the lock to allow concurrent RX processing */
 	c->tx_exclusive = true;
 
-	*winlen = c->pcb.snd_una + c->pcb.snd_wnd - c->pcb.snd_nxt;
+	*winlen = c->pcb.snd_una + (MIN(c->pcb.snd_wnd, c->pcb.cong_wnd)) - c->pcb.snd_nxt;
 	c->acks_delayed_cnt = 0;
 	c->ack_delayed = false;
 	spin_unlock_np(&c->lock);
@@ -1071,6 +1074,14 @@ ssize_t tcp_write(tcpconn_t *c, const void *buf, size_t len)
 		return ret;
 
 	/* actually send the data */
+	// printf("winlen : %lu \n", winlen);
+
+	spin_lock_np(&graphFileLock);
+	if(fp) {
+		fprintf(fp, "%lu\n", winlen);
+	}
+	spin_unlock_np(&graphFileLock);
+
 	ret = tcp_tx_send(c, buf, MIN(len, winlen), true);
 
 	/* catch up on any pending work */

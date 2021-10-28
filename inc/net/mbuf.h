@@ -15,7 +15,7 @@
 #include <base/list.h>
 #include <iokernel/queue.h>
 
-#define MBUF_DEFAULT_LEN	2048*2048
+#define MBUF_DEFAULT_LEN	2048
 #define MBUF_DEFAULT_HEADROOM	128
 
 

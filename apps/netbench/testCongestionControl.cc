@@ -51,10 +51,12 @@ struct uptime {
   uint64_t busy;
 };
 
+#define DATA_SIZE (10)
+
 constexpr uint64_t kNetbenchPort = 8001;
 struct payload {
   uint64_t work_iterations;
-  char data[20];
+  char data[DATA_SIZE];
 };
 
 int request_rate_per_us;
@@ -69,9 +71,9 @@ void ServerWorker(std::unique_ptr<rt::TcpConn> c){
     printf("----------Started Server Worker-----------\n");
     while(true) {
         // Receive a work request.
-        printf("----------Packet Read before -----------\n");
+        // printf("----------Packet Read before -----------\n");
         ssize_t ret = c->ReadFull(&p, sizeof(p));
-        printf("----------Packet Read after-----------\n %lu \n", sizeof(p));
+        // printf("----------Packet Read after-----------\n %lu \n", sizeof(p));
         if (ret != static_cast<ssize_t>(sizeof(p))) {
             if (ret == 0 || ret == -ECONNRESET) break;
             log_err("read failed, ret = %ld", ret);
@@ -85,7 +87,7 @@ void ServerWorker(std::unique_ptr<rt::TcpConn> c){
         // we will be just printing it for now
         // or create a new file in local and write the data to it
 
-        printf("-------------received data--------------\n%s\n", p.data);
+        // printf("-------------received data--------------\n%s\n", p.data);
 
         // Send a work response
         // ssize_t sret = c->WriteFull(&p, ret);
@@ -140,7 +142,7 @@ void ClientWorker(rt::TcpConn *c, rt::WaitGroup *starter){
 
     int ch = getc(f);
     int i = 0;
-    while (ch != EOF && i < 20) {
+    while (ch != EOF && i < DATA_SIZE) {
         p.data[i] = ch;
         printf("%c \n", ch);
         i++;
@@ -173,11 +175,11 @@ void ClientWorker(rt::TcpConn *c, rt::WaitGroup *starter){
         // getchar();
         // printf("The input file content:\n %s \n", input);
         // p.data = input;
-        printf("-----------packet write----------------");
+        // printf("-----------packet write----------------");
         ssize_t ret = c->WriteFull(&p, sizeof(payload));
         if (ret != static_cast<ssize_t>(sizeof(payload)))
             panic("write failed, ret = %ld", ret);
-        printf("-----------packet write finished----------------");
+        // printf("-----------packet write finished----------------");
         // sleep(request_rate_per_us);
     }
 
