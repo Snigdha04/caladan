@@ -32,6 +32,13 @@ extern "C" {
 #include <utility>
 #include <vector>
 
+// #include <torch/script.h>// One-stop header.
+// #include <torch/jit.h>
+// #include <torch/types.h>
+// #include <torch/torch.h>
+// #include <torch/cuda.h>
+
+
 #include <ctime>
 std::time_t timex;
 
@@ -596,22 +603,26 @@ std::vector<work_unit> ClientWorker(
   auto wsize = w.size();
 
   printf("\n-----------client worker wsize : %lu----------------\n", wsize);
+  uint64_t duration_us = (1000000.0 / (offered_load));
+
 
   for (unsigned int i = 0; i < wsize; ++i) {
-    barrier();
-    auto now = steady_clock::now();
-    barrier();
-    if (duration_cast<sec>(now - expstart).count() < w[i].start_us) {
-      rt::Sleep(w[i].start_us - duration_cast<sec>(now - expstart).count());
-    }
+    // barrier();
+    // auto now = steady_clock::now();
+    // barrier();
+  //   if (duration_cast<sec>(now - expstart).count() < w[i].start_us) {
+  //     uint64_t duration_us = w[i].start_us - duration_cast<sec>(now - expstart).count();
+  //     printf("sleep for duration: %lu\n", duration_us);
+  //     rt::Sleep(duration_us);
+  //   }
 
-    if (i > 1 && w[i-1].start_us <= kWarmUpTime &&
-	w[i].start_us >= kWarmUpTime)
-      c->StatClear();
+  //   if (i > 1 && w[i-1].start_us <= kWarmUpTime &&
+	// w[i].start_us >= kWarmUpTime)
+  //     c->StatClear();
 
-    if (duration_cast<sec>(now - expstart).count() - w[i].start_us >
-        kMaxCatchUpUS)
-      continue;
+  //   if (duration_cast<sec>(now - expstart).count() - w[i].start_us >
+  //       kMaxCatchUpUS)
+  //     continue;
 
     timings[i] = microtime();
 
@@ -633,6 +644,7 @@ std::vector<work_unit> ClientWorker(
     if (ret != static_cast<ssize_t>(sizeof(p)))
       panic("write failed, ret = %ld", ret);
     // printf("-----------packet write finished----------------");
+    rt::Sleep(duration_us);
   }
 
   // rt::Sleep(1 * rt::kSeconds);
@@ -1157,13 +1169,11 @@ void AgentHandler(void *arg) {
 
 void ClientHandler(void *arg) {
   int pos;
-  // printf("----------Steady State Experiment-----------\n");
 
   if (total_agents > 1) {
     b = new NetBarrier(total_agents - 1);
     BUG_ON(!b);
   }
-  // printf("----------Steady State Experiment-----------\n");
 
   calculate_rates();
 
@@ -1174,13 +1184,10 @@ void ClientHandler(void *arg) {
   /* Print Header */
   PrintHeader(std::cout);
 
-  // for (double i : offered_loads) {
-
-  printf("----------Steady State Experiment-----------\n");
-  SteadyStateExperiment(threads, 1000.0, st);
-
-  //   rt::Sleep(1000000);
-  // }
+  for (double i : offered_loads) {
+    SteadyStateExperiment(threads, i, st);
+    rt::Sleep(1000000);
+  }
 
   pos = json_out.tellp();
   json_out.seekp(pos - 2);
