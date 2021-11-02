@@ -210,11 +210,11 @@ void tcp_conn_ack(tcpconn_t *c, struct list_head *freeq)
 		}
 #endif
 
-		// spin_lock_np(&graphFileLock);
-		// if(fp) {
-		// 	fprintf(fp, "%u\n", c->pcb.snd_wnd);
-		// }
-		// spin_unlock_np(&graphFileLock);
+		spin_lock_np(&graphFileLock);
+		if(fp) {
+			fprintf(fp, "%u\n", c->pcb.cong_wnd);
+		}
+		spin_unlock_np(&graphFileLock);
 		
 
 	}	
@@ -1076,11 +1076,11 @@ ssize_t tcp_write(tcpconn_t *c, const void *buf, size_t len)
 	/* actually send the data */
 	// printf("winlen : %lu \n", winlen);
 
-	spin_lock_np(&graphFileLock);
-	if(fp) {
-		fprintf(fp, "%lu\n", winlen);
-	}
-	spin_unlock_np(&graphFileLock);
+	// spin_lock_np(&graphFileLock);
+	// if(fp) {
+	// 	fprintf(fp, "%lu\n", winlen);
+	// }
+	// spin_unlock_np(&graphFileLock);
 
 	ret = tcp_tx_send(c, buf, MIN(len, winlen), true);
 

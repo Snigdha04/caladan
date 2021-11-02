@@ -194,7 +194,7 @@ void tcp_rx_conn(struct trans_entry *e, struct mbuf *m)
 	// drop every 300th packet to test congestion control
 	cong_pkt_count++;
 	// printf("packet # : %d\n", cong_pkt_count);
-	if(cong_pkt_count > 300) {
+	if(cong_pkt_count > 500) {
 		mbuf_drop(m);
 		printf("Dropping packet\n");
 		cong_pkt_count = 0;
@@ -390,7 +390,7 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 
 	seq = m->seg_seq;
 	len = m->seg_end - m->seg_seq;
-	printf("In Slow Path 1\n");
+	// printf("In Slow Path 1\n");
 
 	if (unlikely((m->flags & TCP_FIN) > 0))
 		len++;
@@ -400,7 +400,7 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 			send_rst(c, false, seq, ack, len);
 		goto done;
 	}
-	printf("In Slow Path 2\n");
+	// printf("In Slow Path 2\n");
 
 	if (unlikely(c->pcb.state == TCP_STATE_SYN_SENT)) {
 		if ((m->flags & TCP_ACK) > 0) {
@@ -455,7 +455,7 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 				tcp_conn_set_state(c, TCP_STATE_SYN_RECEIVED);
 			}
 		}
-		printf("In Slow Path 3\n");
+		// printf("In Slow Path 3\n");
 		goto done;
 	}
 
@@ -465,7 +465,7 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 	 * TCP_STATE_CLOSE_WAIT || TCP_STATE_CLOSING ||
 	 * TCP_STATE_LAST_ACK || TCP_STATE_TIME_WAIT
 	 */
-	printf("In Slow Path 4\n");
+	// printf("In Slow Path 4\n");
 
 	/* step 1 - acceptability testing */
 	if (unlikely(!is_acceptable(c, len, seq))) {
@@ -478,7 +478,7 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		tcp_conn_fail(c, ECONNRESET);
 		goto done;
 	}
-	printf("In Slow Path 5\n");
+	// printf("In Slow Path 5\n");
 
 	/* step 3 - security checks skipped */
 
@@ -488,7 +488,7 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		tcp_conn_fail(c, ECONNRESET);
 		goto done;
 	}
-	printf("In Slow Path 6\n");
+	// printf("In Slow Path 6\n");
 
 	/* step 5 - ACK */
 	if (unlikely((m->flags & TCP_ACK) == 0)) {
@@ -573,18 +573,19 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 	 * 3. There is no data payload included with the ACK.
 	 * 4. There is no window update.
 	 */
-	printf("In Slow Path 7\n");
-	printf("ack_same:%s \tc->pcb.snd_una:%u \tc->pcb.snd_nxt:%u \tlen:%u \t wnd_updated:%u\n", ack_same?"true":"false", c->pcb.snd_una, c->pcb.snd_nxt, len, wnd_updated);
+	// printf("In Slow Path 7\n");
+	// printf("ack_same:%s \tc->pcb.snd_una:%u \tc->pcb.snd_nxt:%u \tlen:%u \t wnd_updated:%u\n", ack_same?"true":"false", c->pcb.snd_una, c->pcb.snd_nxt, len, wnd_updated);
 	if (unlikely(ack_same && c->pcb.snd_una != c->pcb.snd_nxt &&
 		     len == 0 && !wnd_updated)) {
 		c->rep_acks++;
-		printf("Recieved duplicate ack \n");
+		// printf("Recieved duplicate ack \n");
 		if (c->rep_acks >= TCP_FAST_RETRANSMIT_THRESH) {
 #if(CONGESTION_CONTROL_ENABLED)
 			// 3-duplicate acks
 			printf("Detected three duplicate acks \n");
 			c->pcb.ssthresh = c->pcb.cong_wnd/2;
 			c->pcb.cong_wnd = c->pcb.ssthresh + 3;
+			printf("new ssthresh : %u \t new cong_win : %u\n", c->pcb.ssthresh, c->pcb.cong_wnd);
 #endif
 			if (c->tx_exclusive) {
 				c->do_fast_retransmit = true;

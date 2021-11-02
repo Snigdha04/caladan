@@ -180,7 +180,8 @@ void ClientWorker(rt::TcpConn *c, rt::WaitGroup *starter){
         if (ret != static_cast<ssize_t>(sizeof(payload)))
             panic("write failed, ret = %ld", ret);
         // printf("-----------packet write finished----------------");
-        // sleep(request_rate_per_us);
+        // sleep(1);
+        rt::Sleep(1);
     }
 
     c->Shutdown(SHUT_RDWR);
