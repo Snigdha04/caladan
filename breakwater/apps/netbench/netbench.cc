@@ -45,7 +45,7 @@ std::time_t timex;
 barrier_t barrier;
 
 constexpr uint16_t kBarrierPort = 41;
-#define MAXDATASIZE 1024
+#define MAXDATASIZE 3584
 
 const struct crpc_ops *crpc_ops;
 const struct srpc_ops *srpc_ops;
@@ -69,6 +69,8 @@ double st;
 int st_type;
 // RPC service level objective (in us)
 int slo;
+
+FILE *fp = NULL; // file pointer to latency times
 
 std::ofstream json_out;
 std::ofstream csv_out;
@@ -458,7 +460,7 @@ constexpr uint64_t kMaxCatchUpUS = 5;
 
 void RpcServer(struct srpc_ctx *ctx) {
   // Validate and parse the request.
-  printf("----------Packet Read before -----------\n");
+  // printf("----------Packet Read before -----------\n");
   if (unlikely(ctx->req_len != sizeof(payload))) {
     log_err("got invalid RPC len %ld", ctx->req_len);
     return;
@@ -484,17 +486,18 @@ void RpcServer(struct srpc_ctx *ctx) {
   // std::string data;
   char data[MAXDATASIZE];
   memcpy(data, out->buf, sizeof(out->buf));
-  data[sizeof(out->buf)] = '\0';
+  // data[sizeof(out->buf)] = '\0';
+  // printf("size of data : %lu \n", sizeof(out->buf));
   
-  router::RequestHeader p;
+  router::LoadModelWorkerArg p;
   // std::string s(data);
   // printf("----------Packet Read after 5 data: %s-----------\n", s.c_str());
   p.ParseFromString(data);
   // printf("----------Packet Read after 5-----------\n");
 
-  printf("People:\n");
-  printf("user_id:\t %d \n", p.user_id());
-  printf("request id:\t %d \n", p.user_request_id());
+  // printf("People:\n");
+  // printf("user_id:\t %s \n", p.model_path().c_str());
+  // printf("request id:\t %d \n", p.user_request_id());
   // printf("----------Packet Read after 6-----------\n");
 
   out->success = true;
@@ -523,7 +526,8 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
                                     double last_us) {
   std::vector<work_unit> w;
   double st_us;
-  while (true) {
+  int count = 0;
+  while (true && count<10000) {
     if (cur_us < 4000000)
       cur_us += a();
     else if (cur_us < 6000000)
@@ -549,6 +553,7 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
 	panic("unknown service time distribution");
     }
     w.emplace_back(work_unit{cur_us, st_us, 0, rand()});
+    count++;
   }
 
   return w;
@@ -560,6 +565,7 @@ std::vector<work_unit> ClientWorker(
   std::vector<work_unit> w(wf());
   std::vector<uint64_t> timings;
   timings.reserve(w.size());
+  fp = fopen("./duration_values.txt", "w");
 
   // Start the receiver thread.
   auto th = rt::Thread([&] {
@@ -583,6 +589,14 @@ std::vector<work_unit> ClientWorker(
       }
 
       w[idx].duration_us = now - timings[idx];
+
+      // spin_lock_np(&graphFileLock);
+      // if(fp) {
+      fprintf(fp, "%lf\n", w[idx].duration_us);
+      // printf("%lf\n", w[idx].duration_us);
+      // }
+      // spin_unlock_np(&graphFileLock);
+
       w[idx].window = c->WinAvail();
       w[idx].tsc = ntoh64(rp.tsc_end);
       w[idx].cpu = ntoh32(rp.cpu);
@@ -630,10 +644,17 @@ std::vector<work_unit> ClientWorker(
 
     // Send an RPC request.   
     std::string msg; 
-    router::RequestHeader req;
-    req.set_user_id(1);
-    req.set_user_request_id(12312);
-    req.SerializeToString(&msg);
+    // router::RequestHeader req;
+    // req.set_user_id(1);
+    // req.set_user_request_id(12312);
+    // req.SerializeToString(&msg);
+
+    router::LoadModelWorkerArg modelreq;
+    std::vector<char> fourKbVec(3580, 'a');
+    std::string fourKbString(fourKbVec.begin(), fourKbVec.end());
+    modelreq.set_model_path(fourKbString);
+    modelreq.SerializeToString(&msg);
+
     memcpy(p.buf, msg.c_str(), sizeof(msg));
     
     p.success = false;
@@ -651,6 +672,7 @@ std::vector<work_unit> ClientWorker(
   rt::Sleep((int)(kRTT + 2 * st));
   BUG_ON(c->Shutdown(SHUT_RDWR));
   th.Join();
+  fclose(fp);
 
   return w;
 }
