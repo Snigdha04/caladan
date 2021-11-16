@@ -13,6 +13,9 @@ netbench_obj = $(netbench_src:.cc=.o)
 testProtoBuff_src = testProtoBuff.cc
 testProtoBuff_obj = $(testProtoBuff_src:.cc=.o)
 
+testProtoBufNoOp_src = testProtoBufNoOp.cc
+testProtoBufNoOp_obj = $(testProtoBufNoOp_src:.cc=.o)
+
 router_src = router.pb.cc
 router_obj = $(router_src:.cc=.o)
 
@@ -25,7 +28,7 @@ INC += -I$(ROOT_PATH)/breakwater/bindings/cc/inc
 RUNTIME_LIBS := $(RUNTIME_LIBS) $(BW_LIBS) -lnuma
 
 # must be first
-all: netbench testProtoBuff
+all: netbench testProtoBuff testProtoBufNoOp
 
 netbench: $(lib_obj) $(netbench_obj) $(router_obj) $(librt_libs) $(libbw_libs) $(RUNTIME_DEPS)
 	$(LDXX) -o $@ $(LDFLAGS) $(lib_obj) $(netbench_obj) $(router_obj) \
@@ -35,8 +38,12 @@ testProtoBuff: $(lib_obj) $(testProtoBuff_obj) $(router_obj) $(librt_libs) $(lib
 	$(LDXX) -o $@ $(LDFLAGS) $(lib_obj) $(testProtoBuff_obj) $(router_obj) \
 	$(librt_libs) $(libbw_libs) $(RUNTIME_LIBS) -lprotobuf
 
+testProtoBufNoOp: $(lib_obj) $(testProtoBufNoOp_obj) $(router_obj) $(librt_libs) $(libbw_libs) $(RUNTIME_DEPS)
+	$(LDXX) -o $@ $(LDFLAGS) $(lib_obj) $(testProtoBufNoOp_obj) $(router_obj) \
+	$(librt_libs) $(libbw_libs) $(RUNTIME_LIBS) -lprotobuf
+
 # general build rules for all targets
-src = $(lib_src) $(netbench_src) $(testProtoBuff_src)
+src = $(lib_src) $(netbench_src) $(testProtoBuff_src) $(testProtoBufNoOp_src)
 obj = $(src:.cc=.o)
 dep = $(obj:.o=.d)
 

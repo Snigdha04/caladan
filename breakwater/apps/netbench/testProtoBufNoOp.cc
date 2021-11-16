@@ -15,7 +15,7 @@ extern "C" {
 #include "cc/thread.h"
 #include "cc/timer.h"
 #include "breakwater/rpc++.h"
-
+#include "./router.pb.h"
 #include "synthetic_worker.h"
 
 #include <algorithm>
@@ -32,12 +32,20 @@ extern "C" {
 #include <utility>
 #include <vector>
 
+// #include <torch/script.h>// One-stop header.
+// #include <torch/jit.h>
+// #include <torch/types.h>
+// #include <torch/torch.h>
+// #include <torch/cuda.h>
+
+
 #include <ctime>
 std::time_t timex;
 
 barrier_t barrier;
 
 constexpr uint16_t kBarrierPort = 41;
+#define MAXDATASIZE 3584
 
 const struct crpc_ops *crpc_ops;
 const struct srpc_ops *srpc_ops;
@@ -61,6 +69,8 @@ double st;
 int st_type;
 // RPC service level objective (in us)
 int slo;
+
+FILE *fp = NULL; // file pointer to latency times
 
 std::ofstream json_out;
 std::ofstream csv_out;
@@ -442,6 +452,7 @@ struct payload {
   uint64_t tsc_end;
   uint32_t cpu;
   uint64_t server_queue;
+  char buf[MAXDATASIZE];
 };
 
 // The maximum lateness to tolerate before dropping egress samples.
@@ -449,29 +460,50 @@ constexpr uint64_t kMaxCatchUpUS = 5;
 
 void RpcServer(struct srpc_ctx *ctx) {
   // Validate and parse the request.
-  printf("------------receive payload - server1-----------\n");
+  // printf("----------Packet Read before -----------\n");
   if (unlikely(ctx->req_len != sizeof(payload))) {
     log_err("got invalid RPC len %ld", ctx->req_len);
     return;
   }
+  // printf("----------Packet Read after 1-----------\n");
   const payload *in = reinterpret_cast<const payload *>(ctx->req_buf);
+  // printf("----------Packet Read after 2-----------\n");
 
   // Perform the synthetic work.
-  uint64_t workn = ntoh64(in->work_iterations);
-  int core_id = get_current_affinity();
-  SyntheticWorker *w = workers[core_id];
+  // uint64_t workn = ntoh64(in->work_iterations);
+  // int core_id = get_current_affinity();
+  // SyntheticWorker *w = workers[core_id];
+  // if (workn != 0) w->Work(workn);
 
-  if (workn != 0) w->Work(workn);
 
   // Craft a response.
   ctx->resp_len = sizeof(payload);
   payload *out = reinterpret_cast<payload *>(ctx->resp_buf);
+  // printf("----------Packet Read after 3-----------\n");
   memcpy(out, in, sizeof(*out));
+  // printf("----------Packet Read after 4-----------\n");
+
+  // std::string data;
+  char data[MAXDATASIZE];
+  memcpy(data, out->buf, sizeof(out->buf));
+  // data[sizeof(out->buf)] = '\0';
+  // printf("size of data : %lu \n", sizeof(out->buf));
+  
+  router::LoadModelWorkerArg p;
+  // std::string s(data);
+  // printf("----------Packet Read after 5 data: %s-----------\n", s.c_str());
+  p.ParseFromString(data);
+  // printf("----------Packet Read after 5-----------\n");
+
+  // printf("People:\n");
+  // printf("user_id:\t %s \n", p.model_path().c_str());
+  // printf("request id:\t %d \n", p.user_request_id());
+  // printf("----------Packet Read after 6-----------\n");
+
   out->success = true;
   out->tsc_end = hton64(rdtscp(&out->cpu));
   out->cpu = hton32(out->cpu);
   out->server_queue = hton64(rt::RuntimeQueueUS());
-  printf("------------receive payload - server2 , out->success : %s -----------\n", out->success ? "true":"false");
 }
 
 void ServerHandler(void *arg) {
@@ -494,7 +526,8 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
                                     double last_us) {
   std::vector<work_unit> w;
   double st_us;
-  while (true) {
+  int count = 0;
+  while (true && count<10000) {
     if (cur_us < 4000000)
       cur_us += a();
     else if (cur_us < 6000000)
@@ -520,6 +553,7 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
 	panic("unknown service time distribution");
     }
     w.emplace_back(work_unit{cur_us, st_us, 0, rand()});
+    count++;
   }
 
   return w;
@@ -531,6 +565,7 @@ std::vector<work_unit> ClientWorker(
   std::vector<work_unit> w(wf());
   std::vector<uint64_t> timings;
   timings.reserve(w.size());
+  fp = fopen("./duration_values.txt", "w");
 
   // Start the receiver thread.
   auto th = rt::Thread([&] {
@@ -539,12 +574,10 @@ std::vector<work_unit> ClientWorker(
 
     while (true) {
       ssize_t ret = c->Recv(&rp, sizeof(rp), &latency);
-      printf("------------receive payload - client1-----------\n");
       if (ret != static_cast<ssize_t>(sizeof(rp))) {
         if (ret == 0 || ret < 0) break;
-	panic("read failed, ret = %ld", ret);
+	      panic("read failed, ret = %ld", ret);
       }
-      printf("------------receive payload - client2, rp.success : %s -----------\n", rp.success ? "true":"false");
 
       uint64_t now = microtime();
       uint64_t idx = ntoh64(rp.index);
@@ -552,19 +585,24 @@ std::vector<work_unit> ClientWorker(
       if (!rp.success) {
         w[idx].duration_us = latency;
         w[idx].success = false;
-        printf("------------receive payload - client3-----------\n");
-	continue;
+	      continue;
       }
-      printf("------------receive payload - client4-----------\n");
 
       w[idx].duration_us = now - timings[idx];
+
+      // spin_lock_np(&graphFileLock);
+      // if(fp) {
+      fprintf(fp, "%lf\n", w[idx].duration_us);
+      // printf("%lf\n", w[idx].duration_us);
+      // }
+      // spin_unlock_np(&graphFileLock);
+
       w[idx].window = c->WinAvail();
       w[idx].tsc = ntoh64(rp.tsc_end);
       w[idx].cpu = ntoh32(rp.cpu);
       w[idx].server_queue = ntoh64(rp.server_queue);
       w[idx].server_time = w[idx].work_us + w[idx].server_queue;
       w[idx].success = true;
-      printf("------------receive payload - client5-----------\n");
     }
   });
 
@@ -575,43 +613,66 @@ std::vector<work_unit> ClientWorker(
   barrier();
   auto expstart = steady_clock::now();
   barrier();
-
   payload p;
   auto wsize = w.size();
 
+  printf("\n-----------client worker wsize : %lu----------------\n", wsize);
+  uint64_t duration_us = (1000000.0 / (offered_load));
+
+
   for (unsigned int i = 0; i < wsize; ++i) {
-    barrier();
-    auto now = steady_clock::now();
-    barrier();
-    if (duration_cast<sec>(now - expstart).count() < w[i].start_us) {
-      rt::Sleep(w[i].start_us - duration_cast<sec>(now - expstart).count());
-    }
+    // barrier();
+    // auto now = steady_clock::now();
+    // barrier();
+  //   if (duration_cast<sec>(now - expstart).count() < w[i].start_us) {
+  //     uint64_t duration_us = w[i].start_us - duration_cast<sec>(now - expstart).count();
+  //     printf("sleep for duration: %lu\n", duration_us);
+  //     rt::Sleep(duration_us);
+  //   }
 
-    if (i > 1 && w[i-1].start_us <= kWarmUpTime &&
-	w[i].start_us >= kWarmUpTime)
-      c->StatClear();
+  //   if (i > 1 && w[i-1].start_us <= kWarmUpTime &&
+	// w[i].start_us >= kWarmUpTime)
+  //     c->StatClear();
 
-    if (duration_cast<sec>(now - expstart).count() - w[i].start_us >
-        kMaxCatchUpUS)
-      continue;
+  //   if (duration_cast<sec>(now - expstart).count() - w[i].start_us >
+  //       kMaxCatchUpUS)
+  //     continue;
 
     timings[i] = microtime();
 
-    // Send an RPC request.
+    // printf("-------------Populating payload-----------\n");
+
+    // Send an RPC request.   
+    std::string msg; 
+    // router::RequestHeader req;
+    // req.set_user_id(1);
+    // req.set_user_request_id(12312);
+    // req.SerializeToString(&msg);
+
+    router::LoadModelWorkerArg modelreq;
+    std::vector<char> fourKbVec(3580, 'a');
+    std::string fourKbString(fourKbVec.begin(), fourKbVec.end());
+    modelreq.set_model_path(fourKbString);
+    modelreq.SerializeToString(&msg);
+
+    memcpy(p.buf, msg.c_str(), sizeof(msg));
+    
     p.success = false;
     p.work_iterations = hton64(w[i].work_us * kIterationsPerUS);
     p.index = hton64(i);
-    printf("------------Send payload - client-----------\n");
     ssize_t ret = c->Send(&p, sizeof(p), w[i].hash);
     if (ret == -ENOBUFS) continue;
     if (ret != static_cast<ssize_t>(sizeof(p)))
       panic("write failed, ret = %ld", ret);
+    // printf("-----------packet write finished----------------");
+    rt::Sleep(duration_us);
   }
 
   // rt::Sleep(1 * rt::kSeconds);
   rt::Sleep((int)(kRTT + 2 * st));
   BUG_ON(c->Shutdown(SHUT_RDWR));
   th.Join();
+  fclose(fp);
 
   return w;
 }
@@ -629,6 +690,7 @@ std::vector<work_unit> RunExperiment(
     if (unlikely(outc == nullptr)) panic("couldn't connect to raddr.");
     conns.emplace_back(std::move(outc));
   }
+  printf("----------Run Experiment-----------\n");
 
   // Launch a worker thread for each connection.
   rt::WaitGroup starter(threads);
