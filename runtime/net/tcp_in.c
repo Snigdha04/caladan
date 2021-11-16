@@ -20,6 +20,10 @@
 #define TCP_SLOWPATH_FLAGS (TCP_FIN|TCP_RST|TCP_URG)
 
 int cong_pkt_count = 0;
+// spinlock_t graphFileLock;
+static DEFINE_SPINLOCK(flagFileLock);
+FILE *flag_file = NULL;
+char ch; // is it server process or client process?
 
 static void __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack,
 			  uint32_t snd_nxt, uint32_t win,
@@ -191,14 +195,25 @@ void tcp_rx_conn(struct trans_entry *e, struct mbuf *m)
 	}
 
 #if(CONGESTION_CONTROL_ENABLED)	
-	// drop every 300th packet to test congestion control
-	cong_pkt_count++;
-	// printf("packet # : %d\n", cong_pkt_count);
-	if(cong_pkt_count > 500) {
-		mbuf_drop(m);
-		printf("Dropping packet\n");
-		cong_pkt_count = 0;
-		return;
+	spin_lock_np(&flagFileLock);
+	if(!flag_file) {
+		flag_file = fopen("/users/Snig04/flag.txt", "r");
+		ch = getc(flag_file);
+		fclose(flag_file);
+		printf("%c \n", ch);
+	}
+	spin_unlock_np(&flagFileLock);
+
+	if(ch == 's') {
+		// drop every 300th packet to test congestion control
+		cong_pkt_count++;
+		// printf("packet # : %d\n", cong_pkt_count);
+		if(cong_pkt_count > 500) {
+			mbuf_drop(m);
+			printf("Dropping packet\n");
+			cong_pkt_count = 0;
+			return;
+		}
 	}
 #endif
 	snd_nxt = load_acquire(&c->pcb.snd_nxt);
@@ -443,6 +458,7 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 				// Initialise the congestion control params
 				c->pcb.cong_wnd = c->pcb.snd_mss;
 				c->pcb.ssthresh = win; // initialising the ssthresh value to senders' receive window
+				c->pcb.cwnd_drop_time = microtime();
 				printf("cong_win : %d\t send_win : %d\t ssthresh : %d\n", c->pcb.cong_wnd, c->pcb.snd_wnd, c->pcb.ssthresh);
 #endif
 				c->rep_acks = 0;
@@ -510,6 +526,7 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 		c->pcb.cong_wnd = c->pcb.snd_mss;
 		c->pcb.ssthresh = win; // initialising the ssthresh value to receivers input window
 		c->rep_acks = 0;
+		c->pcb.cwnd_drop_time = microtime();
 		printf("cong_win : %d\t send_win : %d\t ssthresh : %d\n", c->pcb.cong_wnd, c->pcb.snd_wnd, c->pcb.ssthresh);
 #endif		
 		tcp_conn_set_state(c, TCP_STATE_ESTABLISHED);
@@ -583,9 +600,14 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 #if(CONGESTION_CONTROL_ENABLED)
 			// 3-duplicate acks
 			printf("Detected three duplicate acks \n");
-			c->pcb.ssthresh = c->pcb.cong_wnd/2;
-			c->pcb.cong_wnd = c->pcb.ssthresh + 3;
-			printf("new ssthresh : %u \t new cong_win : %u\n", c->pcb.ssthresh, c->pcb.cong_wnd);
+
+			uint64_t now = microtime();
+			if( now - c->pcb.cwnd_drop_time > TCP_RTT){
+				c->pcb.ssthresh = c->pcb.cong_wnd/2;
+				c->pcb.cong_wnd = c->pcb.ssthresh + 3*c->pcb.snd_mss;
+				c->pcb.cwnd_drop_time = microtime();
+				printf("1. new ssthresh : %u \t new cong_win : %u\n", c->pcb.ssthresh, c->pcb.cong_wnd);
+			}
 #endif
 			if (c->tx_exclusive) {
 				c->do_fast_retransmit = true;
@@ -593,9 +615,10 @@ __tcp_rx_conn(tcpconn_t *c, struct mbuf *m, uint32_t ack, uint32_t snd_nxt,
 			} else {
 				retransmit = tcp_tx_fast_retransmit_start(c);
 			}
-#if(CONGESTION_CONTROL_ENABLED)
-			c->pcb.cong_wnd = c->pcb.ssthresh;
-#endif
+// #if(CONGESTION_CONTROL_ENABLED)
+// 			c->pcb.cong_wnd = c->pcb.ssthresh;
+// 			printf("2. new ssthresh : %u \t new cong_win : %u\n", c->pcb.ssthresh, c->pcb.cong_wnd);
+// #endif
 			c->rep_acks = 0;
 		}
 	} else if (c->pcb.snd_una == ack) {

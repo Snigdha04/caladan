@@ -24,6 +24,7 @@
 #define TCP_TIME_WAIT_TIMEOUT	(1 * ONE_SECOND) /* FIXME: should be 8 minutes */
 #define TCP_ZERO_WND_TIMEOUT	(300 * ONE_MS) /* FIXME: should be dynamic */
 #define TCP_RETRANSMIT_TIMEOUT	(5000 * ONE_MS) /* FIXME: should be dynamic */
+#define TCP_RTT			(10 * ONE_US) /* FIXME: should be determined dynamically */
 #define TCP_FAST_RETRANSMIT_THRESH 3
 #define TCP_OOO_MAX_SIZE	2048
 #define TCP_RETRANSMIT_BATCH	16
@@ -79,11 +80,14 @@ struct tcp_pcb {
 	uint32_t	irs;		/* initial receive sequence number */
 	uint32_t	rcv_wscale;	/* the receive window scale */
 	uint32_t	rcv_mss;	/* the send max segment size */
+
 #if(CONGESTION_CONTROL_ENABLED)
 	/* Congestion control params (RFC 5681 Section 3) */
 	uint32_t 	cong_wnd;   /* the congestion window */
 	uint32_t 	ssthresh;	/* the slow start threshold */
+	uint64_t	cwnd_drop_time;	/* latest time when cwnd dropped */
 #endif
+
 };
 
 /* the TCP connection struct */

@@ -181,7 +181,7 @@ void ClientWorker(rt::TcpConn *c, rt::WaitGroup *starter){
             panic("write failed, ret = %ld", ret);
         // printf("-----------packet write finished----------------");
         // sleep(1);
-        rt::Sleep(1);
+        // rt::Sleep(100);
     }
 
     c->Shutdown(SHUT_RDWR);
