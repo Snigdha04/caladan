@@ -1,4 +1,5 @@
 #include <breakwater/rpc++.h>
+#include <stdio.h>
 
 namespace rpc {
 

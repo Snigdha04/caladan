@@ -9,6 +9,8 @@
 #include <base/log.h>
 #include <base/stddef.h>
 
+#include <sys/resource.h>
+
 #include <unistd.h>
 
 #include "defs.h"
@@ -138,9 +140,25 @@ static void print_usage(void)
 	printf("\tnuma: an incomplete and experimental policy for NUMA architectures\n");
 }
 
+void increase_stack_size()
+{
+	struct rlimit curr_val, new_val;
+	getrlimit(RLIMIT_STACK, &curr_val);
+	// printf("val: %ld \t max_limit: %ld \n", curr_val.rlim_cur, curr_val.rlim_max);
+
+	new_val.rlim_cur = curr_val.rlim_cur*2;
+	new_val.rlim_max = curr_val.rlim_max;
+	setrlimit(RLIMIT_STACK, &new_val);
+
+	// getrlimit(RLIMIT_STACK, &curr_val);
+	// printf("val: %ld \t max_limit: %ld \n", curr_val.rlim_cur, curr_val.rlim_max);
+}
+
 int main(int argc, char *argv[])
 {
 	int i, ret;
+
+	increase_stack_size();
 
 	if (getuid() != 0) {
 		fprintf(stderr, "Error: please run as root\n");

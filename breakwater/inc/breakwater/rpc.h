@@ -28,8 +28,8 @@ struct srpc_ctx {
 	uint64_t		id;
 	size_t			req_len;
 	size_t			resp_len;
-	char			req_buf[SRPC_BUF_SIZE];
-	char			resp_buf[SRPC_BUF_SIZE];
+	char			*req_buf;
+	char			*resp_buf;
 };
 
 typedef void (*srpc_fn_t)(struct srpc_ctx *ctx);
@@ -65,7 +65,7 @@ struct crpc_ctx {
 	size_t			len;
 	uint64_t		id;
 	uint64_t		ts;
-	char			buf[SRPC_BUF_SIZE];
+	char			*buf;
 };
 
 struct crpc_ops {
