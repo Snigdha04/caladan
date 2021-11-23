@@ -238,7 +238,7 @@ int cdg_open(struct netaddr raddr, struct crpc_session **sout, int id)
 		s->qreq[i] = smalloc(sizeof(struct cdg_ctx));
 		if (!s->qreq[i])
 			goto fail;
-		s->qreq[i]->cmn.buf = smalloc(sizeof(char)*SRPC_BUF_SIZE);
+		s->qreq[i]->cmn.buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
 		if (!s->qreq[i]->cmn.buf)
 			goto fail;
 	}
@@ -263,7 +263,7 @@ int cdg_open(struct netaddr raddr, struct crpc_session **sout, int id)
 fail:
 	tcp_close(c);
 	for (i = i - 1; i >= 0; i--) {
-		sfree(s->qreq[i]->cmn.buf);
+		free(s->qreq[i]->cmn.buf);
 		sfree(s->qreq[i]);
 	}
 	sfree(s);
@@ -284,7 +284,7 @@ void cdg_close(struct crpc_session *s_)
 
 	tcp_close(s->cmn.c);
 	for (i = 0; i < CRPC_QLEN; ++i) {
-		sfree(s->qreq[i]->cmn.buf);
+		free(s->qreq[i]->cmn.buf);
 		sfree(s->qreq[i]);
 	}
 	sfree(s);

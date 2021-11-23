@@ -606,16 +606,10 @@ int tcp_dial(struct netaddr laddr, struct netaddr raddr, tcpconn_t **c_out)
 	tcpconn_t *c;
 	int ret;
 
-	log_debug("tcp_dial start\n");
-	printf("tcp_dial start\n");
-
 	/* create and initialize a connection */
 	c = tcp_conn_alloc();
 	if (unlikely(!c))
 		return -ENOMEM;
-
-	log_debug("tcp_dial conn alloc success\n");
-	printf("tcp_dial start 2\n");
 
 	/*
 	 * Attach the connection to the transport layer. From this point onward
@@ -626,9 +620,6 @@ int tcp_dial(struct netaddr laddr, struct netaddr raddr, tcpconn_t **c_out)
 		sfree(c);
 		return ret;
 	}
-
-	log_debug("tcp_dial conn attach success\n");
-	printf("tcp_dial start 3\n");
 
 	opts.opt_en = (TCP_OPTION_MSS | TCP_OPTION_WSCALE);
 	opts.mss = c->pcb.rcv_mss;
@@ -645,9 +636,6 @@ int tcp_dial(struct netaddr laddr, struct netaddr raddr, tcpconn_t **c_out)
 	tcp_conn_get(c); /* take a ref for the state machine */
 	tcp_conn_set_state(c, TCP_STATE_SYN_SENT);
 
-	log_debug("tcp_dial SYN sent\n");
-	printf("tcp_dial start 4\n");
-
 	/* wait until the connection is established or there is a failure */
 	while (!c->tx_closed && c->pcb.state < TCP_STATE_ESTABLISHED)
 		waitq_wait(&c->tx_wq, &c->lock);
@@ -660,9 +648,6 @@ int tcp_dial(struct netaddr laddr, struct netaddr raddr, tcpconn_t **c_out)
 		return ret;
 	}
 	spin_unlock_np(&c->lock);
-
-	log_debug("tcp_dial conn established\n");
-	printf("tcp_dial start 5\n");
 
 	*c_out = c;
 	return 0;

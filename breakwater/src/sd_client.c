@@ -433,7 +433,7 @@ int csd_open(struct netaddr raddr, struct crpc_session **sout, int id)
 		s->qreq[i] = smalloc(sizeof(struct crpc_ctx));
 		if (!s->qreq[i])
 			goto fail;
-		s->qreq[i]->buf = smalloc(sizeof(char)*SRPC_BUF_SIZE);
+		s->qreq[i]->buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
 		if (!s->qreq[i]->buf)
 			goto fail;
 	}
@@ -471,7 +471,7 @@ int csd_open(struct netaddr raddr, struct crpc_session **sout, int id)
 fail:
 	tcp_close(c);
 	for (i = i - 1; i >= 0; i--) {
-		sfree(s->qreq[i]->buf);
+		free(s->qreq[i]->buf);
 		sfree(s->qreq[i]);
 	}
 	sfree(s);
@@ -494,7 +494,7 @@ void csd_close(struct crpc_session *s_)
 
 	tcp_close(s->cmn.c);
 	for (i = 0; i < CRPC_QLEN; ++i) {
-		sfree(s->qreq[i]->buf);
+		free(s->qreq[i]->buf);
 		sfree(s->qreq[i]);
 	}
 	sfree(s);

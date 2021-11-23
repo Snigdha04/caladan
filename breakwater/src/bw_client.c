@@ -461,20 +461,16 @@ int cbw_open(struct netaddr raddr, struct crpc_session **sout, int id)
 		return -ENOMEM;
 	}
 
-	printf("cbw_open 3\n");
-
 	memset(s, 0, sizeof(*s));
 
 	for (i = 0; i < CRPC_QLEN; ++i) {
 		s->qreq[i] = smalloc(sizeof(struct crpc_ctx));
 		if (!s->qreq[i])
 			goto fail;
-		s->qreq[i]->buf = smalloc(sizeof(char)*SRPC_BUF_SIZE);
+		s->qreq[i]->buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
 		if (!s->qreq[i]->buf)
 			goto fail;
 	}
-
-	printf("cbw_open 4\n");
 
 	s->cmn.c = c;
 	mutex_init(&s->lock);
@@ -491,14 +487,12 @@ int cbw_open(struct netaddr raddr, struct crpc_session **sout, int id)
 	ret = thread_spawn(crpc_timer, s);
 	BUG_ON(ret);
 
-	printf("cbw_open 5\n");
-
 	return 0;
 
 fail:
 	tcp_close(c);
 	for (i = i - 1; i >= 0; i--) {
-		sfree(s->qreq[i]->buf);
+		free(s->qreq[i]->buf);
 		sfree(s->qreq[i]);
 	}
 	sfree(s);
@@ -519,7 +513,7 @@ void cbw_close(struct crpc_session *s_)
 
 	tcp_close(s->cmn.c);
 	for(i = 0; i < CRPC_QLEN; ++i) {
-		sfree(s->qreq[i]->buf);
+		free(s->qreq[i]->buf);
 		sfree(s->qreq[i]);
 	}
 	sfree(s);

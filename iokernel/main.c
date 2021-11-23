@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
 {
 	int i, ret;
 
-	increase_stack_size();
+	// increase_stack_size();
 
 	if (getuid() != 0) {
 		fprintf(stderr, "Error: please run as root\n");

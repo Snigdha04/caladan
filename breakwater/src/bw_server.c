@@ -180,17 +180,17 @@ static int srpc_get_slot(struct sbw_session *s)
 		s->slots[slot] = smalloc(sizeof(struct sbw_ctx));
 		s->slots[slot]->cmn.s = (struct srpc_session *)s;
 		s->slots[slot]->cmn.idx = slot;
-		s->slots[slot]->cmn.req_buf = smalloc(sizeof(char)*SRPC_BUF_SIZE);
-		s->slots[slot]->cmn.resp_buf = smalloc(sizeof(char)*SRPC_BUF_SIZE);
+		s->slots[slot]->cmn.req_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
+		s->slots[slot]->cmn.resp_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
 	}
 	return slot;
 }
 
 static void srpc_put_slot(struct sbw_session *s, int slot)
 {
-	sfree(s->slots[slot]->cmn.req_buf);
+	free(s->slots[slot]->cmn.req_buf);
 	s->slots[slot]->cmn.req_buf = NULL;
-	sfree(s->slots[slot]->cmn.resp_buf);
+	free(s->slots[slot]->cmn.resp_buf);
 	s->slots[slot]->cmn.resp_buf = NULL;
 	sfree(s->slots[slot]);
 	s->slots[slot] = NULL;
@@ -429,8 +429,10 @@ static int srpc_recv_one(struct sbw_session *s)
 	thread_t *th;
 	uint64_t old_demand;
 	int win_diff;
-	char buf_tmp[SRPC_BUF_SIZE];
+	char *buf_tmp;
 	struct sbw_ctx *c;
+
+	buf_tmp = malloc(sizeof(char)*SRPC_BUF_SIZE);
 
 again:
 	th = NULL;
@@ -442,7 +444,7 @@ again:
 		return ret;
 	}
 
-	log_warn("srpc_recv_one 1 \n");
+	// log_warn("srpc_recv_one 1 \n");
 
 	/* parse the client header */
 	if (unlikely(chdr.magic != BW_REQ_MAGIC)) {
@@ -476,7 +478,7 @@ again:
 			return ret;
 		}
 
-		log_warn("srpc_recv_one 2 \n");
+		// log_warn("srpc_recv_one 2 \n");
 
 		c->cmn.req_len = chdr.len;
 		c->cmn.resp_len = 0;
@@ -514,7 +516,7 @@ again:
 
 		spin_unlock_np(&s->lock);
 
-		log_warn("srpc_recv_one 3 \n");
+		// log_warn("srpc_recv_one 3 \n");
 
 		ret = thread_spawn(srpc_worker, c);
 		BUG_ON(ret);
@@ -576,6 +578,7 @@ again:
 		return -EINVAL;
 	}
 
+	free(buf_tmp);
 	return ret;
 }
 

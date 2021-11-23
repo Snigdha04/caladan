@@ -148,17 +148,17 @@ static int srpc_get_slot(struct snc_session *s)
 		s->slots[slot] = smalloc(sizeof(struct snc_ctx));
 		s->slots[slot]->cmn.s = (struct srpc_session *)s;
 		s->slots[slot]->cmn.idx = slot;
-		s->slots[slot]->cmn.req_buf = smalloc(sizeof(char)*SRPC_BUF_SIZE);
-		s->slots[slot]->cmn.resp_buf = smalloc(sizeof(char)*SRPC_BUF_SIZE);
+		s->slots[slot]->cmn.req_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
+		s->slots[slot]->cmn.resp_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
 	}
 	return slot;
 }
 
 static void srpc_put_slot(struct snc_session *s, int slot)
 {
-	sfree(s->slots[slot]->cmn.req_buf);
+	free(s->slots[slot]->cmn.req_buf);
 	s->slots[slot]->cmn.req_buf = NULL;
-	sfree(s->slots[slot]->cmn.resp_buf);
+	free(s->slots[slot]->cmn.resp_buf);
 	s->slots[slot]->cmn.resp_buf = NULL;
 	sfree(s->slots[slot]);
 	s->slots[slot] = NULL;

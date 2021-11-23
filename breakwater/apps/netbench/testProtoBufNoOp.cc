@@ -31,6 +31,7 @@ extern "C" {
 #include <string>
 #include <utility>
 #include <vector>
+#include <string>
 
 // #include <torch/script.h>// One-stop header.
 // #include <torch/jit.h>
@@ -45,7 +46,8 @@ std::time_t timex;
 barrier_t barrier;
 
 constexpr uint16_t kBarrierPort = 41;
-#define MAXDATASIZE 3584
+#define MAXDATASIZE 1000*1800
+#define SLEEP_TIME 8
 
 const struct crpc_ops *crpc_ops;
 const struct srpc_ops *srpc_ops;
@@ -455,6 +457,11 @@ struct payload {
   char buf[MAXDATASIZE];
 };
 
+struct response_payload {
+  bool success;
+  uint64_t index;
+};
+
 // The maximum lateness to tolerate before dropping egress samples.
 constexpr uint64_t kMaxCatchUpUS = 5;
 
@@ -475,35 +482,43 @@ void RpcServer(struct srpc_ctx *ctx) {
   // SyntheticWorker *w = workers[core_id];
   // if (workn != 0) w->Work(workn);
 
+  char *data;
+  data = (char*) malloc(sizeof(in->buf));
+  memcpy(data, in->buf, sizeof(in->buf));
+
+  router::LoadModelWorkerArg p;
+  p.ParseFromString(data);
+
+  // printf("model path :\t %s \n", p.model_path().c_str());
+
+  rt::Sleep( SLEEP_TIME * rt::kMilliseconds); // do some processing
 
   // Craft a response.
-  ctx->resp_len = sizeof(payload);
-  payload *out = reinterpret_cast<payload *>(ctx->resp_buf);
+  ctx->resp_len = sizeof(response_payload);
+  response_payload *out = reinterpret_cast<response_payload *>(ctx->resp_buf);
+
   // printf("----------Packet Read after 3-----------\n");
-  memcpy(out, in, sizeof(*out));
+  // memcpy(out, in, sizeof(*out));
   // printf("----------Packet Read after 4-----------\n");
 
-  // std::string data;
-  char data[MAXDATASIZE];
-  memcpy(data, out->buf, sizeof(out->buf));
-  // data[sizeof(out->buf)] = '\0';
+  
   // printf("size of data : %lu \n", sizeof(out->buf));
   
-  router::LoadModelWorkerArg p;
-  // std::string s(data);
+  
   // printf("----------Packet Read after 5 data: %s-----------\n", s.c_str());
-  p.ParseFromString(data);
+  
   // printf("----------Packet Read after 5-----------\n");
 
-  // printf("People:\n");
-  // printf("user_id:\t %s \n", p.model_path().c_str());
-  // printf("request id:\t %d \n", p.user_request_id());
   // printf("----------Packet Read after 6-----------\n");
 
   out->success = true;
-  out->tsc_end = hton64(rdtscp(&out->cpu));
-  out->cpu = hton32(out->cpu);
-  out->server_queue = hton64(rt::RuntimeQueueUS());
+  out->index = in->index;
+
+  // free(data);
+  
+  // out->tsc_end = hton64(rdtscp(&out->cpu));
+  // out->cpu = hton32(out->cpu);
+  // out->server_queue = hton64(rt::RuntimeQueueUS());
 }
 
 void ServerHandler(void *arg) {
@@ -527,7 +542,9 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
   std::vector<work_unit> w;
   double st_us;
   int count = 0;
-  while (true && count<10000) {
+  // printf("add ele in wf 1\n");
+  while (true && count < offered_load) {
+    // printf("add ele in wf 2\n");
     if (cur_us < 4000000)
       cur_us += a();
     else if (cur_us < 6000000)
@@ -537,21 +554,23 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
     if (cur_us > last_us) break;
     switch (st_type) {
       case 1: // exponential
-	st_us = s();
+        st_us = s();
         break;
       case 2: // constant
-	st_us = st;
-	break;
+        st_us = st;
+        break;
       case 3: // bimodal
-	if (rand() % 10 < 2) {
-          st_us = st * 4.0;
-	} else {
-          st_us = st * 0.25;
-	}
-	break;
+        if (rand() % 10 < 2) {
+                st_us = st * 4.0;
+        } else {
+                st_us = st * 0.25;
+        }
+        break;
       default:
-	panic("unknown service time distribution");
+        panic("unknown service time distribution");
     }
+
+    // printf("add ele in wf 3\n");
     w.emplace_back(work_unit{cur_us, st_us, 0, rand()});
     count++;
   }
@@ -562,14 +581,20 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
 std::vector<work_unit> ClientWorker(
     rpc::RpcClient *c, rt::WaitGroup *starter, rt::WaitGroup *starter2,
     std::function<std::vector<work_unit>()> wf) {
+
+  // printf("client worker 0\n");
   std::vector<work_unit> w(wf());
   std::vector<uint64_t> timings;
   timings.reserve(w.size());
-  fp = fopen("./duration_values.txt", "w");
+  // printf("client worker 1\n");
+  std::string filename = "./bw_output_async_" + std::to_string(MAXDATASIZE/1000000.0) +"MB_" + std::to_string(SLEEP_TIME) +"msLoad_" + std::to_string(offered_load) + "QPS.txt";
+  fp = fopen(filename.c_str(), "w");
+
+  // printf("client worker 2\n");
 
   // Start the receiver thread.
   auto th = rt::Thread([&] {
-    payload rp;
+    response_payload rp;
     uint64_t latency;
 
     while (true) {
@@ -597,23 +622,28 @@ std::vector<work_unit> ClientWorker(
       // }
       // spin_unlock_np(&graphFileLock);
 
-      w[idx].window = c->WinAvail();
-      w[idx].tsc = ntoh64(rp.tsc_end);
-      w[idx].cpu = ntoh32(rp.cpu);
-      w[idx].server_queue = ntoh64(rp.server_queue);
-      w[idx].server_time = w[idx].work_us + w[idx].server_queue;
+      // w[idx].window = c->WinAvail();
+      // w[idx].tsc = ntoh64(rp.tsc_end);
+      // w[idx].cpu = ntoh32(rp.cpu);
+      // w[idx].server_queue = ntoh64(rp.server_queue);
+      // w[idx].server_time = w[idx].work_us + w[idx].server_queue;
       w[idx].success = true;
     }
   });
 
   // Synchronized start of load generation.
+  // printf("client worker 2\n");
   starter->Done();
   starter2->Wait();
 
   barrier();
   auto expstart = steady_clock::now();
   barrier();
-  payload p;
+
+  // printf("before payload\n");
+  payload *p;
+  p = (payload*)malloc(sizeof(payload));
+  // printf("after payload\n");
   auto wsize = w.size();
 
   printf("\n-----------client worker wsize : %lu----------------\n", wsize);
@@ -650,19 +680,20 @@ std::vector<work_unit> ClientWorker(
     // req.SerializeToString(&msg);
 
     router::LoadModelWorkerArg modelreq;
-    std::vector<char> fourKbVec(3580, 'a');
-    std::string fourKbString(fourKbVec.begin(), fourKbVec.end());
-    modelreq.set_model_path(fourKbString);
+    std::vector<char> dataVec(MAXDATASIZE, 'a');
+    std::string dataString(dataVec.begin(), dataVec.end());
+    modelreq.set_model_path(dataString);
     modelreq.SerializeToString(&msg);
 
-    memcpy(p.buf, msg.c_str(), sizeof(msg));
+    memcpy(p->buf, msg.c_str(), sizeof(msg));
     
-    p.success = false;
-    p.work_iterations = hton64(w[i].work_us * kIterationsPerUS);
-    p.index = hton64(i);
-    ssize_t ret = c->Send(&p, sizeof(p), w[i].hash);
+    p->success = false;
+    p->work_iterations = hton64(w[i].work_us * kIterationsPerUS);
+    p->index = hton64(i);
+    // printf("len = %ld\n", sizeof(msg));
+    ssize_t ret = c->Send(p, sizeof(payload), w[i].hash);
     if (ret == -ENOBUFS) continue;
-    if (ret != static_cast<ssize_t>(sizeof(p)))
+    if (ret != static_cast<ssize_t>(sizeof(payload)))
       panic("write failed, ret = %ld", ret);
     // printf("-----------packet write finished----------------");
     rt::Sleep(duration_us);

@@ -16,7 +16,7 @@
  */
 
 #define SRPC_PORT	8123
-#define SRPC_BUF_SIZE	4096
+#define SRPC_BUF_SIZE	1024*1024*2
 
 struct srpc_session {
 	tcpconn_t		*c;
