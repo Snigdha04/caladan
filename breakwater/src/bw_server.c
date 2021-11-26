@@ -422,17 +422,18 @@ static void srpc_worker(void *arg)
 		thread_ready(th);
 }
 
-static int srpc_recv_one(struct sbw_session *s)
+static int srpc_recv_one(struct sbw_session *s, char *buf_tmp)
 {
 	struct cbw_hdr chdr;
 	int idx, ret;
 	thread_t *th;
 	uint64_t old_demand;
 	int win_diff;
-	char *buf_tmp;
+	// char *buf_tmp;
 	struct sbw_ctx *c;
 
-	buf_tmp = malloc(sizeof(char)*SRPC_BUF_SIZE);
+	// buf_tmp = malloc(sizeof(char)*SRPC_BUF_SIZE);
+	// log_warn("srpc_recv_one malloced \n");
 
 again:
 	th = NULL;
@@ -578,7 +579,7 @@ again:
 		return -EINVAL;
 	}
 
-	free(buf_tmp);
+	// free(buf_tmp);
 	return ret;
 }
 
@@ -732,6 +733,10 @@ static void srpc_server(void *arg)
 	BUG_ON(!s);
 	memset(s, 0, sizeof(*s));
 
+	char *buf_tmp;
+	buf_tmp = malloc(sizeof(char)*SRPC_BUF_SIZE);
+	BUG_ON(!buf_tmp);
+
 	s->cmn.c = c;
 	s->drained_core = -1;
 	s->id = atomic_fetch_and_add(&srpc_num_sess, 1) + 1;
@@ -751,7 +756,7 @@ static void srpc_server(void *arg)
 	BUG_ON(ret);
 
 	while (true) {
-		ret = srpc_recv_one(s);
+		ret = srpc_recv_one(s, buf_tmp);
 		if (ret)
 			break;
 	}
@@ -774,6 +779,7 @@ static void srpc_server(void *arg)
 
 	atomic_dec(&srpc_num_sess);
 	waitgroup_wait(&s->send_waiter);
+	free(buf_tmp);
 	tcp_close(c);
 	sfree(s);
 

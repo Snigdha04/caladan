@@ -46,7 +46,7 @@ std::time_t timex;
 barrier_t barrier;
 
 constexpr uint16_t kBarrierPort = 41;
-#define MAXDATASIZE 1000*1800
+#define MAXDATASIZE 1000*500
 #define SLEEP_TIME 8
 
 const struct crpc_ops *crpc_ops;
@@ -82,7 +82,7 @@ int total_agents = 1;
 constexpr uint64_t kIterationsPerUS = 69;  // 83
 // Total duration of the experiment in us
 constexpr uint64_t kWarmUpTime = 2000000;
-constexpr uint64_t kExperimentTime = 4000000;
+constexpr uint64_t kExperimentTime = 10000000;
 // RTT
 constexpr uint64_t kRTT = 10;
 
@@ -482,17 +482,24 @@ void RpcServer(struct srpc_ctx *ctx) {
   // SyntheticWorker *w = workers[core_id];
   // if (workn != 0) w->Work(workn);
 
-  char *data;
-  data = (char*) malloc(sizeof(in->buf));
-  memcpy(data, in->buf, sizeof(in->buf));
+  // char *data;
+  // data = (char*) malloc(sizeof(in->buf));
+  // memcpy(data, in->buf, sizeof(in->buf));
 
   router::LoadModelWorkerArg p;
-  p.ParseFromString(data);
+  p.ParseFromString(in->buf);
 
   // printf("model path :\t %s \n", p.model_path().c_str());
 
-  rt::Sleep( SLEEP_TIME * rt::kMilliseconds); // do some processing
+  // rt::Sleep( SLEEP_TIME * rt::kMilliseconds); // do some processing
+  
+  uint64_t now = microtime();
+  uint64_t start = now;
 
+  while (now - start < SLEEP_TIME * rt::kMilliseconds) {
+    now = microtime();
+  }
+  
   // Craft a response.
   ctx->resp_len = sizeof(response_payload);
   response_payload *out = reinterpret_cast<response_payload *>(ctx->resp_buf);
@@ -541,9 +548,9 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
                                     double last_us) {
   std::vector<work_unit> w;
   double st_us;
-  int count = 0;
+  // int count = 0;
   // printf("add ele in wf 1\n");
-  while (true && count < offered_load) {
+  while (true) {
     // printf("add ele in wf 2\n");
     if (cur_us < 4000000)
       cur_us += a();
@@ -570,9 +577,9 @@ std::vector<work_unit> GenerateWork(Arrival a, Service s, double cur_us,
         panic("unknown service time distribution");
     }
 
-    // printf("add ele in wf 3\n");
+    // printf("%lf\n", cur_us);
     w.emplace_back(work_unit{cur_us, st_us, 0, rand()});
-    count++;
+    // count++;
   }
 
   return w;
@@ -636,9 +643,9 @@ std::vector<work_unit> ClientWorker(
   starter->Done();
   starter2->Wait();
 
-  barrier();
-  auto expstart = steady_clock::now();
-  barrier();
+  // barrier();
+  // auto expstart = steady_clock::now();
+  // barrier();
 
   // printf("before payload\n");
   payload *p;
@@ -647,26 +654,24 @@ std::vector<work_unit> ClientWorker(
   auto wsize = w.size();
 
   printf("\n-----------client worker wsize : %lu----------------\n", wsize);
-  uint64_t duration_us = (1000000.0 / (offered_load));
 
+  uint64_t duration_us = (1000000.0 / (offered_load)); // required for constant load test
 
-  for (unsigned int i = 0; i < wsize; ++i) {
+  for (unsigned int i = 0; i < 10*offered_load; ++i) {
     // barrier();
     // auto now = steady_clock::now();
     // barrier();
-  //   if (duration_cast<sec>(now - expstart).count() < w[i].start_us) {
-  //     uint64_t duration_us = w[i].start_us - duration_cast<sec>(now - expstart).count();
-  //     printf("sleep for duration: %lu\n", duration_us);
-  //     rt::Sleep(duration_us);
-  //   }
 
-  //   if (i > 1 && w[i-1].start_us <= kWarmUpTime &&
-	// w[i].start_us >= kWarmUpTime)
-  //     c->StatClear();
+    // if (duration_cast<sec>(now - expstart).count() < w[i].start_us) {
+    //   uint64_t duration_us = w[i].start_us - duration_cast<sec>(now - expstart).count();
+    //   // printf("sleep for duration: %lu\n", duration_us);
+    //   rt::Sleep(duration_us);
+    // }
 
-  //   if (duration_cast<sec>(now - expstart).count() - w[i].start_us >
-  //       kMaxCatchUpUS)
-  //     continue;
+    // if (duration_cast<sec>(now - expstart).count() - w[i].start_us > kMaxCatchUpUS)
+    //   continue;
+
+    rt::Sleep(duration_us); // required for constant load test
 
     timings[i] = microtime();
 
@@ -695,8 +700,7 @@ std::vector<work_unit> ClientWorker(
     if (ret == -ENOBUFS) continue;
     if (ret != static_cast<ssize_t>(sizeof(payload)))
       panic("write failed, ret = %ld", ret);
-    // printf("-----------packet write finished----------------");
-    rt::Sleep(duration_us);
+
   }
 
   // rt::Sleep(1 * rt::kSeconds);
