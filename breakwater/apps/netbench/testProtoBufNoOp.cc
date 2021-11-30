@@ -658,6 +658,7 @@ std::vector<work_unit> ClientWorker(
   printf("\n-----------client worker wsize : %lu----------------\n", wsize);
 
   uint64_t duration_us = (1000000.0 / (offered_load)); // required for constant load test
+  std::vector<char> dataVec(MAXDATASIZE, 'a');
 
   for (unsigned int i = 0; i < time_in_seconds*offered_load; ++i) {
     // barrier();
@@ -674,6 +675,7 @@ std::vector<work_unit> ClientWorker(
     //   continue;
 
     rt::Sleep(duration_us); // required for constant load test
+    std::string dataString(dataVec.begin(), dataVec.end());
 
     timings[i] = microtime();
 
@@ -687,12 +689,14 @@ std::vector<work_unit> ClientWorker(
     // req.SerializeToString(&msg);
 
     router::LoadModelWorkerArg modelreq;
-    std::vector<char> dataVec(MAXDATASIZE, 'a');
-    std::string dataString(dataVec.begin(), dataVec.end());
+    
+    
     modelreq.set_model_path(dataString);
     modelreq.SerializeToString(&msg);
 
     memcpy(p->buf, msg.c_str(), sizeof(msg));
+
+    
     
     p->success = false;
     p->work_iterations = hton64(w[i].work_us * kIterationsPerUS);

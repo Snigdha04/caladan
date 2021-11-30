@@ -19,13 +19,13 @@
 */
 
 /* delay threshold to detect congestion */
-#define SBW_MIN_DELAY_US		80000
+#define SBW_MIN_DELAY_US		10000
 /* delay threshold for AQM */
-#define SBW_DROP_THRESH			160000
+#define SBW_DROP_THRESH			16000
 
 /* round trip time in us */
-#define SBW_RTT_US			10000
+#define SBW_RTT_US			11000
 
 #define SBW_AI				0.001
 #define SBW_MD				0.02
-#define CBW_MAX_CLIENT_DELAY_US		10000
+#define CBW_MAX_CLIENT_DELAY_US		11000
