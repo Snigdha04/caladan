@@ -46,7 +46,7 @@ std::time_t timex;
 barrier_t barrier;
 
 constexpr uint16_t kBarrierPort = 41;
-#define MAXDATASIZE 1000*500
+#define MAXDATASIZE 1000*1800
 #define SLEEP_TIME 8
 
 const struct crpc_ops *crpc_ops;
@@ -82,7 +82,7 @@ int total_agents = 1;
 constexpr uint64_t kIterationsPerUS = 69;  // 83
 // Total duration of the experiment in us
 constexpr uint64_t kWarmUpTime = 2000000;
-constexpr uint64_t kExperimentTime = 10000000;
+constexpr uint64_t kExperimentTime = 120000000;
 // RTT
 constexpr uint64_t kRTT = 10;
 
@@ -592,7 +592,8 @@ std::vector<work_unit> ClientWorker(
   // printf("client worker 0\n");
   std::vector<work_unit> w(wf());
   std::vector<uint64_t> timings;
-  timings.reserve(w.size());
+  int time_in_seconds = 10;  // 1.5mins
+  timings.reserve(time_in_seconds*offered_load);
   // printf("client worker 1\n");
   std::string filename = "./bw_output_async_" + std::to_string(MAXDATASIZE/1000000.0) +"MB_" + std::to_string(SLEEP_TIME) +"msLoad_" + std::to_string(offered_load) + "QPS.txt";
   fp = fopen(filename.c_str(), "w");
@@ -615,16 +616,17 @@ std::vector<work_unit> ClientWorker(
       uint64_t idx = ntoh64(rp.index);
 
       if (!rp.success) {
-        w[idx].duration_us = latency;
-        w[idx].success = false;
+        // w[idx].duration_us = latency;
+        // w[idx].success = false;
 	      continue;
       }
 
-      w[idx].duration_us = now - timings[idx];
+      // w[idx].duration_us = now - timings[idx];
+      uint64_t duration_per_req = now - timings[idx];
 
       // spin_lock_np(&graphFileLock);
       // if(fp) {
-      fprintf(fp, "%lf\n", w[idx].duration_us);
+      fprintf(fp, "%ld\n", duration_per_req);
       // printf("%lf\n", w[idx].duration_us);
       // }
       // spin_unlock_np(&graphFileLock);
@@ -634,7 +636,7 @@ std::vector<work_unit> ClientWorker(
       // w[idx].cpu = ntoh32(rp.cpu);
       // w[idx].server_queue = ntoh64(rp.server_queue);
       // w[idx].server_time = w[idx].work_us + w[idx].server_queue;
-      w[idx].success = true;
+      // w[idx].success = true;
     }
   });
 
@@ -657,7 +659,7 @@ std::vector<work_unit> ClientWorker(
 
   uint64_t duration_us = (1000000.0 / (offered_load)); // required for constant load test
 
-  for (unsigned int i = 0; i < 10*offered_load; ++i) {
+  for (unsigned int i = 0; i < time_in_seconds*offered_load; ++i) {
     // barrier();
     // auto now = steady_clock::now();
     // barrier();

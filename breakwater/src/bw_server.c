@@ -177,23 +177,26 @@ static int srpc_get_slot(struct sbw_session *s)
 	int slot = __builtin_ffsl(s->avail_slots[0]) - 1;
 	if (slot >= 0) {
 		bitmap_atomic_clear(s->avail_slots, slot);
-		s->slots[slot] = smalloc(sizeof(struct sbw_ctx));
+		// s->slots[slot] = smalloc(sizeof(struct sbw_ctx));
 		s->slots[slot]->cmn.s = (struct srpc_session *)s;
 		s->slots[slot]->cmn.idx = slot;
-		s->slots[slot]->cmn.req_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
-		s->slots[slot]->cmn.resp_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
+		// s->slots[slot]->cmn.req_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
+		// s->slots[slot]->cmn.resp_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
 	}
 	return slot;
 }
 
 static void srpc_put_slot(struct sbw_session *s, int slot)
 {
-	free(s->slots[slot]->cmn.req_buf);
-	s->slots[slot]->cmn.req_buf = NULL;
-	free(s->slots[slot]->cmn.resp_buf);
-	s->slots[slot]->cmn.resp_buf = NULL;
-	sfree(s->slots[slot]);
-	s->slots[slot] = NULL;
+	// free(s->slots[slot]->cmn.req_buf);
+	// s->slots[slot]->cmn.req_buf = NULL;
+	// free(s->slots[slot]->cmn.resp_buf);
+	// s->slots[slot]->cmn.resp_buf = NULL;
+	// sfree(s->slots[slot]);
+	// s->slots[slot] = NULL;
+
+	//reset the values in beffers
+
 	bitmap_atomic_set(s->avail_slots, slot);
 }
 
@@ -737,6 +740,13 @@ static void srpc_server(void *arg)
 	buf_tmp = malloc(sizeof(char)*SRPC_BUF_SIZE);
 	BUG_ON(!buf_tmp);
 
+	// initialise the slots
+	for(int i=0; i<SBW_MAX_WINDOW; i++) {
+		s->slots[i] = smalloc(sizeof(struct sbw_ctx));
+		s->slots[i]->cmn.req_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
+		s->slots[i]->cmn.resp_buf = malloc(sizeof(char)*SRPC_BUF_SIZE);
+	}
+
 	s->cmn.c = c;
 	s->drained_core = -1;
 	s->id = atomic_fetch_and_add(&srpc_num_sess, 1) + 1;
@@ -780,6 +790,13 @@ static void srpc_server(void *arg)
 	atomic_dec(&srpc_num_sess);
 	waitgroup_wait(&s->send_waiter);
 	free(buf_tmp);
+
+	for(int i=0; i<SBW_MAX_WINDOW; i++) {
+		free(s->slots[i]->cmn.req_buf);
+		free(s->slots[i]->cmn.resp_buf);
+		sfree(s->slots[i]);
+	}
+
 	tcp_close(c);
 	sfree(s);
 

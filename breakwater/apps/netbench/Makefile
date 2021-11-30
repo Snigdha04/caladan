@@ -60,4 +60,4 @@ endif
 
 .PHONY: clean
 clean:
-	rm -f $(obj) $(dep) netbench testProtoBuff
+	rm -f $(obj) $(dep) netbench testProtoBuff testProtoBufNoOp
